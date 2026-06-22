@@ -15,13 +15,13 @@ before the surface re-prices). **Build everything to target the SPREAD, not the 
 ## Quality stack (grades in CLAUDE.md)
 - **Engine + backtest↔live:** NautilusTrader (pin v1.x) — options-native, *same strategy class* sim↔live.
 - **Pricing / IV:** vollib (Black-76).
-- **HAR-RV / HAR-CJ:** statsmodels (OLS + HAC). **No GARCH.**
+- **HAR-RV:** statsmodels (OLS + HAC). **No GARCH.**
 - **Broker + data:** breeze-connect (ICICI Breeze) — 1-sec underlying + per-strike options (incl. expired).
   *WS/session reliability is the known risk; the adapter must be reconnect-robust.*
 
 ## Write ourselves (no quality lib covers these)
 1. **Breeze adapter for Nautilus** (data + execution) — pure Python; daily session token; robust WS reconnect. *Highest-effort item.*
-2. **HAR-CJ RV forecast** + **Lee-Mykland jump flag** (NIFTY **futures**, 1-min; 5-min RV components). Jump = regime/feature, **not a reactive trigger** (a detected jump has already re-priced the option — position *ahead* of jump-prone regimes).
+2. **HAR-RV RV forecast** + **Lee-Mykland jump flag** (NIFTY **futures**, 1-min; 5-min RV components). Jump = regime/feature, **not a reactive trigger** (a detected jump has already re-priced the option — position *ahead* of jump-prone regimes).
 3. **RV−IV spread model** — *the edge axis*; de-bias by regime VRP; trade only the residual that beats IV.
 4. **Strategy** (Nautilus Strategy subclass): straddle / slight-OTM strangle entry/exit/sizing, gated on the spread.
 5. **NSE cost model** — built FIRST.
@@ -38,7 +38,7 @@ before the surface re-prices). **Build everything to target the SPREAD, not the 
 0. Repo + uv deps; pin Nautilus v1.x.
 1. **NSE cost model FIRST** (Nautilus FeeModel).
 2. **Breeze data adapter** — minute underlying + per-strike option history → Nautilus Parquet catalog.
-3. **HAR-CJ RV forecast + Lee-Mykland** on NIFTY futures.
+3. **HAR-RV RV forecast + Lee-Mykland** on NIFTY futures.
 4. **RV−IV spread signal** (de-biased by regime VRP) → straddle/strangle entry/exit.
 5. **Walk-forward OOS backtest on REAL Breeze option data**, vs (a) blind straddle (b) opening-momentum baseline. **← THE GATE.**
 6. If it clears costs OOS → **paper (Breeze)** → small live on a **fixed-IP VPS, SEBI-compliant.**
