@@ -19,6 +19,7 @@ Both sides then `uv sync` to the *exact* same versions.
 2. Compute → Instances → **Create**:
    - Image: **Ubuntu 24.04 LTS**; Shape: **VM.Standard.A1.Flex, 2 OCPU / 12 GB**; Region: **Mumbai (ap-mumbai-1)**; public subnet + assign public IPv4; upload your SSH **public** key (`~/.ssh/id_ed25519.pub`; make one with `ssh-keygen -t ed25519`).
    - *"Out of host capacity"* → retry, switch Availability Domain, or try off-peak. (A1 launch is a lottery.)
+   - **Sizing:** the free A1 = **2 OCPU / 12 GB** (Oracle halved it from 4/24 in June 2026). On **PAYG you can scale to 4 OCPU / 24 GB**, but only the first 2/12 is free — a full always-on 4/24 bills the overage at ≈ **$27/mo (~₹2,300)**. The free 2/12 is plenty for this bot; keep the 24 GB option in reserve for headroom.
 3. Networking → convert the instance's public IP to a **Reserved** IP (survives stop/start; ephemeral can change and break your whitelist).
 4. Inbound firewall: leave only **SSH (22)** open — the bot makes only **outbound** calls to Breeze, so no app ports are needed.
 5. **Never manually stop the instance** (restart can hit "out of capacity" mid-market). Set a **billing alert at ~₹1**.
