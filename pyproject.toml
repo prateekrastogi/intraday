@@ -17,7 +17,6 @@ dependencies = [
 ]
 [dependency-groups]
 dev = ["pytest", "ruff"]
-research = ["optopsy"]  # AGPL — research/ only, NEVER imported by src/volarb
 
 [tool.uv]
 # pin everything in uv.lock (commit it); NautilusTrader v1.x is BETA -> expect migration churn until 2.x
