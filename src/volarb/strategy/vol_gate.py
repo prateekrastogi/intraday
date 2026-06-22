@@ -2,4 +2,4 @@
 
 # === WRITE OURSELVES (no quality OSS lib covers this) ===
 """
-# TODO: consume signals/spread.py; gate on short-dated + low IV-percentile pockets; size the entry.
+# TODO: consume signals/spread.py; gate on short-dated + low IV-percentile / inverted-term-structure (Johnson 2017 SLOPE) pockets; size the entry.

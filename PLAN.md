@@ -12,6 +12,9 @@ before the surface re-prices). **Build everything to target the SPREAD, not the 
 > ⚠️ **Honest scope (§5):** the edge is *thin on NIFTY* (efficient surface + heavy STT/spread drag), strongest
 > on *BTC daily*. The NIFTY OOS net-of-cost test (step 5) may not clear — that is the point of validating.
 
+## Scope guardrails (§5 — what we do NOT trade)
+Trade **magnitude, never direction**. **In-scope:** short-dated + NIFTY index + intraday + where IV under-prices. **Out-of-scope (do not build toward):** monthly-expiry intraday, single-stock options, directional bets, clustering already priced by IV (the equity weekly/30-day trap), and **leverage** (scales risk, adds no edge). The intraday edge is a **speed edge** — act before the short-dated IV re-prices.
+
 ## Quality stack (grades in CLAUDE.md)
 - **Engine + backtest↔live:** NautilusTrader (pin v1.x) — options-native, *same strategy class* sim↔live.
 - **Pricing / IV:** vollib (Black-76).
@@ -22,12 +25,12 @@ before the surface re-prices). **Build everything to target the SPREAD, not the 
 ## Write ourselves (no quality lib covers these)
 1. **Breeze adapter for Nautilus** (data + execution) — pure Python; daily session token; robust WS reconnect. *Highest-effort item.*
 2. **HAR-RV forecast** + **Lee-Mykland jump flag** (NIFTY **futures**, 1-min; 5-min RV components). Jump = regime/feature, **not a reactive trigger** (a detected jump has already re-priced the option — position *ahead* of jump-prone regimes).
-3. **RV−IV spread model** — *the edge axis*; de-bias by regime VRP; trade only the residual that beats IV.
+3. **RV−IV spread model** — *the edge axis*; benchmark IV = India VIX / ATM IV; de-bias by regime VRP; trade only the residual that beats IV.
 4. **Strategy** (Nautilus Strategy subclass): straddle / slight-OTM strangle entry/exit/sizing, gated on the spread.
 5. **NSE cost model** — built FIRST.
 6. Thin vollib wrapper.
 
-*Optional (≤4–6 param ceiling, only if they beat OOS net-of-cost): HARQ (measurement-error), signed jumps + realized semivariance, term-structure / IV-percentile gating. Skip rough-vol, ML/DL, exotic jump machinery.*
+*Optional (≤4–6 param ceiling, only if they beat OOS net-of-cost): HARQ (measurement-error), signed jumps + realized semivariance, term-structure / IV-percentile gating (Johnson 2017 SLOPE — inverted term structure / low IV-percentile). Skip rough-vol, ML/DL, exotic jump machinery.*
 
 ## NSE cost model (§4 — build FIRST, "or the backtest lies")
 - STT **0.10% of premium on sell** (→ **0.15% Apr-2026**); **0.125% of intrinsic on ITM exercise → never let an ITM option expire; square off.**
@@ -47,7 +50,7 @@ before the surface re-prices). **Build everything to target the SPREAD, not the 
 Walk-forward, OOS, **net-of-cost**; judge on **Sortino/Calmar** (long-vol is positive-skew/lumpy), not Sharpe
 alone; must beat **both** the blind straddle and the opening-momentum baseline OOS; current results are
 **BS-modeled off real underlying paths** — the binding next step is **real Breeze option prices**;
-multiple-testing awareness; add a feature only if it improves **OOS net-of-cost** Sharpe.
+multiple-testing awareness; add a feature only if it improves **OOS net-of-cost** Sharpe (never in-sample R²; must survive walk-forward *across regimes*).
 
 ## Compliance & risk (§3)
 SEBI retail-algo (full enforcement Apr-2026): static-IP whitelist + 2FA + client keys; **<10 orders/sec exempt**;
