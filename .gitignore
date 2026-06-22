@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.secret
+secrets.*
+/data/
+*.parquet
+.DS_Store
+.ipynb_checkpoints/
+# keep: uv.lock (committed for reproducibility)

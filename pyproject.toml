@@ -1,0 +1,23 @@
+[project]
+name = "volarb"
+version = "0.0.1"
+description = "Intraday NIFTY straddle/strangle vol-arb (realized-vs-implied spread). Thin glue over quality OSS."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  # ENGINE (backtest+live, options-native, backtest<->live parity) — pin exact v1.x via `uv lock` (beta API)
+  "nautilus_trader",
+  # PRICING / IV / GREEKS (Black-76, LetsBeRational) — MIT
+  "vollib",
+  # ECONOMETRICS — HAR-RV / HAR-CJ via OLS + HAC SEs (NO GARCH; HAR is the decided forecaster)
+  "statsmodels",
+  # BROKER + DATA (ICICI Breeze, official, MIT) — 1-sec underlying + per-strike options incl expired
+  "breeze-connect",
+  # data/io
+  "pandas", "polars", "pyarrow", "pydantic", "pyyaml",
+]
+[dependency-groups]
+dev = ["pytest", "ruff"]
+research = ["optopsy"]  # AGPL — research/ only, NEVER imported by src/volarb
+
+[tool.uv]
+# pin everything in uv.lock (commit it); NautilusTrader v1.x is BETA -> expect migration churn until 2.x
