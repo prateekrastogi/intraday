@@ -17,7 +17,7 @@ Both sides then `uv sync` to the *exact* same versions.
 ## 1. Create the Oracle A1 VM (one-time)
 1. Oracle Cloud → **Billing → Upgrade to Pay-As-You-Go** — free, but it **removes idle-reclaim** (a bot that idles between market events is a reclaim target on a free-only account). Non-negotiable.
 2. Compute → Instances → **Create**:
-   - Image: **Ubuntu 22.04**; Shape: **VM.Standard.A1.Flex, 2 OCPU / 12 GB**; Region: **Mumbai (ap-mumbai-1)**; public subnet + assign public IPv4; upload your SSH **public** key (`~/.ssh/id_ed25519.pub`; make one with `ssh-keygen -t ed25519`).
+   - Image: **Ubuntu 24.04 LTS**; Shape: **VM.Standard.A1.Flex, 2 OCPU / 12 GB**; Region: **Mumbai (ap-mumbai-1)**; public subnet + assign public IPv4; upload your SSH **public** key (`~/.ssh/id_ed25519.pub`; make one with `ssh-keygen -t ed25519`).
    - *"Out of host capacity"* → retry, switch Availability Domain, or try off-peak. (A1 launch is a lottery.)
 3. Networking → convert the instance's public IP to a **Reserved** IP (survives stop/start; ephemeral can change and break your whitelist).
 4. Inbound firewall: leave only **SSH (22)** open — the bot makes only **outbound** calls to Breeze, so no app ports are needed.
