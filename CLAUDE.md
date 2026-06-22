@@ -24,7 +24,7 @@ Writing our own **adapter / glue / signal logic is expected** where no quality l
 
 ### Write ourselves — ONLY these (no quality lib covers them):
 - **Breeze adapter** for NautilusTrader (data + execution) — pure Python; daily session-token auth; robust WS reconnect.
-- **Signal logic**: HAR-RV RV forecast + Lee-Mykland jump flag (on NIFTY **futures**, 1-min) + the **RV−IV spread** model (*the edge axis*).
+- **Signal logic**: HAR-RV forecast + Lee-Mykland jump flag (on NIFTY **futures**, 1-min) + the **RV−IV spread** model (*the edge axis*).
 - **Strategy class** (Nautilus Strategy subclass) + the **spread-gated entry** (enter only when forecast RV beats IV + the regime VRP + costs).
 - **NSE cost model** (full STT / txn / SEBI / GST / stamp / brokerage / bid-ask stack) — **build FIRST** (per IMPLEMENTATION.md §7).
 - **Config** + a thin vollib wrapper.
