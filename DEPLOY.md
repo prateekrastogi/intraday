@@ -63,13 +63,8 @@ Now editing feels local, but terminal / run / debug all execute **on the VM** �
 
 Same `uv.lock` + same code + Nautilus same-strategy-class ⇒ what you backtest is what runs live.
 
-### Git sync between the two machines
-GitHub is the **hub** — laptop and VM sync *through* it, never directly. Rhythm on whichever box you use:
-**`git pull`** before you work → **`git commit`** as you go → **`git push`** when you stop.
-- **Golden rule:** only one machine "active" at a time — *push before you switch, pull before you start* (pass the baton). Do this and conflicts essentially never happen.
-- **Remote-SSH edits the VM's clone directly** (not your local files) → commit/push **from the VM**, then `git pull` on the laptop (and vice-versa).
-- If a push is rejected ("remote contains work you don't have"): `git pull --rebase` → resolve any conflict → `git push`.
-- **Simplest — author in ONE place.** Recommended: author on the **VM via Remote-SSH** (Breeze/live run there anyway, and the 12 GB A1 backtests fine); keep the laptop as a `git pull`-and-run mirror. One editing copy ⇒ **zero two-way conflicts.**
+### Author code in ONE place
+Don't edit on both machines. **Author on the VM via Remote-SSH** (Breeze/live run there anyway, and the 12 GB A1 backtests fine); commit/push from the VM. Keep the **laptop as a `git pull`-and-run mirror** — never edit there. One editing copy ⇒ no two-machine conflicts to manage.
 
 ## 7. Daily Breeze session token
 The token expires at **24 h or midnight** and login is interactive (no headless refresh). Each trading day:
