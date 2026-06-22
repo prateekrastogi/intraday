@@ -1,22 +1,37 @@
 [project]
 name = "volarb"
 version = "0.0.1"
-description = "Intraday NIFTY straddle/strangle vol-arb (realized-vs-implied spread). Thin glue over quality OSS."
+description = "Intraday NIFTY straddle/strangle volatility arbitrage (realized-vs-implied spread)."
+readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-  # ENGINE (backtest+live, options-native, backtest<->live parity) — pin exact v1.x via `uv lock` (beta API)
-  "nautilus_trader",
-  # PRICING / IV / GREEKS (Black-76, LetsBeRational) — MIT
-  "vollib",
-  # ECONOMETRICS — HAR-RV / HAR-CJ via OLS + HAC SEs (NO GARCH; HAR is the decided forecaster)
-  "statsmodels",
-  # BROKER + DATA (ICICI Breeze, official, MIT) — 1-sec underlying + per-strike options incl expired
-  "breeze-connect",
-  # data/io
-  "pandas", "polars", "pyarrow", "pydantic", "pyyaml",
+    "nautilus_trader",   # engine: backtest+live parity, options-native (pin exact v1.x in uv.lock; beta API)
+    "vollib",            # options pricing / IV / greeks (Black-76, LetsBeRational)
+    "statsmodels",       # HAR-RV via OLS + HAC standard errors (no GARCH)
+    "breeze-connect",    # ICICI Breeze: data + execution (1-sec underlying + per-strike options incl. expired)
+    "pandas",
+    "polars",
+    "pyarrow",
+    "pydantic",
+    "pyyaml",
 ]
+
 [dependency-groups]
 dev = ["pytest", "ruff"]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/volarb"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.uv]
-# pin everything in uv.lock (commit it); NautilusTrader v1.x is BETA -> expect migration churn until 2.x
+# Pin all versions in uv.lock (commit it). NautilusTrader v1.x is BETA; expect churn until 2.x.
