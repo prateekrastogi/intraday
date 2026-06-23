@@ -9,3 +9,6 @@ secrets.*
 .DS_Store
 .ipynb_checkpoints/
 # keep: uv.lock (committed for reproducibility)
+logs/
+.pytest_cache/
+.ruff_cache/

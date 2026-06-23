@@ -9,11 +9,9 @@ dependencies = [
     "vollib",            # options pricing / IV / greeks (Black-76, LetsBeRational)
     "statsmodels",       # HAR-RV via OLS + HAC standard errors (no GARCH)
     "breeze-connect",    # ICICI Breeze: data + execution (1-sec underlying + per-strike options incl. expired)
-    "pandas",
-    "polars",
-    "pyarrow",
-    "pydantic",
-    "pyyaml",
+    "pandas",            # Nautilus wrangler boundary + parquet IO
+    "polars",            # research panel builder (wide-on-moneyness pivot)
+    "pyarrow",           # parquet engine for pandas/polars + Nautilus catalog
 ]
 
 [dependency-groups]
