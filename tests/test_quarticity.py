@@ -114,3 +114,113 @@ def test_harq_features_negative_rq_is_clipped() -> None:
 def test_harq_features_length_mismatch_raises() -> None:
     with pytest.raises(ValueError):
         harq_features(np.zeros((4, 2)), np.zeros(3))
+
+
+# ---------------------------------------------------------------------------
+# Gap-filling tests from the independent math-verification pass.
+# Math re-derived from first principles and BNS/BPQ definitions; all the
+# constants/identities below were numerically confirmed.
+# ---------------------------------------------------------------------------
+
+import math  # noqa: E402
+
+
+def test_realized_quarticity_single_return() -> None:
+    # Boundary: n=1 is a valid window (n>=1), RQ = (1/3) r^4, not the n>=3 guard.
+    r = np.array([0.01])
+    assert realized_quarticity(r) == pytest.approx((1 / 3.0) * 0.01**4)
+
+
+def test_realized_quarticity_returns_plain_float_and_nonnegative() -> None:
+    # Contract: scalar python float (spread.py annualizes it), and r^4 >= 0 so
+    # RQ is never negative regardless of return signs.
+    out = realized_quarticity(np.array([-0.01, -0.02, -0.03]))
+    assert isinstance(out, float)
+    assert out >= 0.0
+
+
+def test_realized_quarticity_ravels_2d_input() -> None:
+    # asarray(...).ravel() means a column vector must give the same RQ as 1-d.
+    r = np.array([0.01, -0.02, 0.03])
+    assert realized_quarticity(r.reshape(-1, 1)) == pytest.approx(realized_quarticity(r))
+
+
+def test_tripower_exact_on_three_element_window() -> None:
+    # n=3 is the minimal non-degenerate window: exactly one triple.
+    # TPQ = 3 * mu^-3 * (|2|^(4/3)|3|^(4/3)|4|^(4/3)).
+    r = np.array([2.0, 3.0, 4.0])
+    mu43 = 2.0 ** (2.0 / 3.0) * math.gamma(7.0 / 6.0) / math.sqrt(math.pi)
+    expected = 3 * mu43**-3 * (2 ** (4 / 3) * 3 ** (4 / 3) * 4 ** (4 / 3))
+    assert tripower_quarticity(r) == pytest.approx(expected, rel=1e-12)
+
+
+def test_tripower_zero_return_kills_overlapping_triples() -> None:
+    # A single zero return zeroes every triple that contains it. With 4 returns
+    # both triples touch index 1, so TPQ == 0 exactly -- the multiplicative
+    # structure (not additive) is what makes it jump-robust.
+    r = np.array([0.01, 0.0, 0.02, 0.03])
+    assert tripower_quarticity(r) == pytest.approx(0.0)
+
+
+def test_tripower_scales_as_variance_squared() -> None:
+    # Like RQ, TPQ is an integrated-quarticity estimator -> homogeneous degree 4:
+    # sum |s*r|^(4/3) over three factors = |s|^4 * sum |r|^(4/3).
+    r = np.random.default_rng(7).normal(0, 1e-3, 500)
+    assert tripower_quarticity(2.5 * r) == pytest.approx(2.5**4 * tripower_quarticity(r), rel=1e-12)
+
+
+def test_harq_interacts_only_short_not_mid_or_long() -> None:
+    # With distinct mid/long lags, confirm column 1 is sqrt(RQ)*short and is NOT
+    # accidentally sqrt(RQ)*mid or *long (HARQ, not HARQ-F).
+    rv = np.array([[2.0, 5.0, 7.0], [3.0, 11.0, 13.0]])
+    rq = np.array([4.0, 9.0])  # sqrt -> 2, 3
+    design = harq_features(rv, rq)
+    np.testing.assert_allclose(design[:, 1], [2.0 * 2.0, 3.0 * 3.0])
+    assert not np.allclose(design[:, 1], np.array([2.0, 3.0]) * rv[:, 1])
+    assert not np.allclose(design[:, 1], np.array([2.0, 3.0]) * rv[:, 2])
+
+
+def test_harq_interaction_monotone_in_rq() -> None:
+    # Defining HARQ behaviour: for a fixed positive short lag the interaction
+    # column is strictly increasing in RQ.
+    rv = np.array([[0.02, 0.01]] * 3)
+    design = harq_features(rv, np.array([1.0, 4.0, 9.0]))
+    assert design[0, 1] < design[1, 1] < design[2, 1]
+
+
+def test_harq_features_no_column_guard_raises() -> None:
+    # k < 1 (zero RV columns) must raise -- there is no short lag to interact.
+    with pytest.raises(ValueError):
+        harq_features(np.zeros((3, 0)), np.zeros(3))
+
+
+def test_harq_features_passes_through_nan_no_drop() -> None:
+    # CONTRACT: alignment/no-lookahead is the caller's job; the function does NOT
+    # drop or impute NaNs. A NaN short lag propagates into the interaction.
+    rv = np.array([[np.nan, 0.1], [0.05, 0.04]])
+    design = harq_features(rv, np.array([4.0, 4.0]))
+    assert np.isnan(design[0, 1])  # nan short -> nan interaction, not silently 0
+    assert design[1, 1] == pytest.approx(2.0 * 0.05)
+
+
+def test_harq_features_ravels_2d_rq() -> None:
+    # rq given as a (T,1) column must be raveled, not broadcast.
+    design = harq_features(np.array([[1.0, 2.0], [3.0, 4.0]]), np.array([[4.0], [9.0]]))
+    np.testing.assert_allclose(design[:, 1], [2.0 * 1.0, 3.0 * 3.0])
+
+
+def test_harq_design_recovers_betas_via_ols() -> None:
+    # End-to-end: a clean OLS on the HARQ design recovers planted coefficients,
+    # confirming the columns are independent regressors in the documented order
+    # [intercept, sqrt(RQ)*RV_short, RV_short, RV_mid, RV_long].
+    rng = np.random.default_rng(3)
+    t = 600
+    rv = np.abs(rng.normal(0, 1.0, (t, 3)))  # O(1) -> well-conditioned
+    rq = np.abs(rng.normal(0, 1.0, t))
+    x = harq_features(rv, rq)
+    beta = np.array([0.5, -0.3, 0.4, 0.2, 0.1])
+    # einsum avoids a spurious matmul-fast-path RuntimeWarning on some BLAS
+    # builds; inputs are O(1) and the result is exactly finite.
+    y = np.einsum("ij,j->i", x, beta)
+    bhat, *_ = np.linalg.lstsq(x, y, rcond=None)
+    np.testing.assert_allclose(bhat, beta, atol=1e-8)

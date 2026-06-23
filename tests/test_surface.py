@@ -99,3 +99,66 @@ def test_gate_nan_inputs_do_not_open() -> None:
     assert johnson_gate(slope=float("nan"), iv_pct=float("nan")) is False
     assert johnson_gate(slope=float("nan"), iv_pct=0.10) is True
     assert johnson_gate(slope=-0.05, iv_pct=float("nan")) is True
+
+
+# --- gap-filling tests (independent verification) --------------------------------------
+
+
+def test_iv_percentile_monotone_nondecreasing_in_now() -> None:
+    # As `now` rises through a fixed history, the strictly-below count can only grow:
+    # percentile must be non-decreasing in `now` (a defining property of empirical rank).
+    hist = [0.10, 0.20, 0.20, 0.30, 0.45]
+    prev = -1.0
+    for now in np.linspace(0.0, 0.60, 200):
+        pct = iv_percentile(float(now), hist)
+        assert pct >= prev - 1e-12
+        prev = pct
+    # ends span the full unit interval.
+    assert iv_percentile(-1.0, hist) == pytest.approx(0.0)
+    assert iv_percentile(1.0, hist) == pytest.approx(1.0)
+
+
+def test_iv_percentile_single_element_history() -> None:
+    # degenerate n=1 population: strict-< gives clean {0, 0} buckets, no divide surprises.
+    assert iv_percentile(0.30, [0.20]) == pytest.approx(1.0)
+    assert iv_percentile(0.10, [0.20]) == pytest.approx(0.0)
+    assert iv_percentile(0.20, [0.20]) == pytest.approx(0.0)  # tie, self excluded
+
+
+def test_iv_percentile_returns_native_python_float() -> None:
+    # downstream gate/JSON expect a plain float, not a numpy scalar.
+    out = iv_percentile(0.18, [0.10, 0.20])
+    assert type(out) is float
+    nan_out = iv_percentile(0.18, [])
+    assert type(nan_out) is float and math.isnan(nan_out)
+
+
+def test_term_slope_antisymmetry_and_native_float() -> None:
+    # slope(a,b) == -slope(b,a); and return type is a plain float.
+    assert term_slope(0.30, 0.22) == pytest.approx(-term_slope(0.22, 0.30))
+    assert type(term_slope(0.30, 0.22)) is float
+
+
+def test_gate_returns_native_python_bool() -> None:
+    # not numpy.bool_ -- the `is True` / `is False` assertions elsewhere rely on this.
+    assert type(johnson_gate(slope=-0.05, iv_pct=0.9)) is bool
+    assert type(johnson_gate(slope=0.04, iv_pct=0.9)) is bool
+
+
+def test_gate_custom_iv_pct_threshold_is_strict() -> None:
+    # pct exactly at a CUSTOM low threshold must NOT open (strict <); just below opens.
+    assert johnson_gate(slope=0.04, iv_pct=0.50, iv_pct_low_below=0.50) is False
+    assert johnson_gate(slope=0.04, iv_pct=0.50 - 1e-9, iv_pct_low_below=0.50) is True
+
+
+def test_gate_custom_slope_threshold_is_strict() -> None:
+    # slope exactly at a CUSTOM inversion threshold must NOT open; just below opens.
+    assert johnson_gate(slope=0.02, iv_pct=0.9, slope_inverted_below=0.02) is False
+    assert johnson_gate(slope=0.02 - 1e-9, iv_pct=0.9, slope_inverted_below=0.02) is True
+
+
+def test_gate_inf_inputs_treated_as_not_met() -> None:
+    # +/-inf are non-finite -> neither condition can be satisfied via that input.
+    assert johnson_gate(slope=float("-inf"), iv_pct=0.9) is False
+    assert johnson_gate(slope=float("inf"), iv_pct=0.9) is False
+    assert johnson_gate(slope=0.04, iv_pct=float("inf")) is False

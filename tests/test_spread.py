@@ -191,3 +191,85 @@ def test_vix_benchmark_vectorized() -> None:
     pd.testing.assert_series_equal(
         vix_benchmark(spread, vix), pd.Series([0.06, -0.02]), check_exact=False
     )
+
+
+# --------------------------------------------------------------------------------------
+# GAP-FILLING TESTS (independent math-verification pass)
+# Pin the edges/properties the originals only ran past: required-keyword contract,
+# vectorized negative-variance clip, zero/boundary inputs, the window=1 and NaN-propagation
+# behavior of debias, and the shift-invariance identity that DEFINES debiasing.
+# --------------------------------------------------------------------------------------
+
+
+def test_annualize_rv_requires_is_variance_keyword() -> None:
+    # is_variance is a REQUIRED kw with no default so a variance is never silently
+    # square-rooted-then-squared (the load-bearing safety property). Omitting it must
+    # be a hard TypeError, not a silent default.
+    with pytest.raises(TypeError):
+        annualize_rv(0.01, 30.0)  # type: ignore[call-arg]
+
+
+def test_annualize_rv_clips_negative_variance_vectorized() -> None:
+    # The clip is element-wise: a negative-variance element comes back exactly 0.0 (not
+    # NaN, which would poison the spread/gate downstream) while neighbors are unaffected.
+    arr = np.array([-1e-4, 1e-4, 0.0])
+    out = np.asarray(annualize_rv(arr, 30.0, is_variance=True))
+    assert out[0] == 0.0  # clipped, not NaN
+    assert out[2] == 0.0  # exact zero passes through
+    assert out[1] == pytest.approx(math.sqrt(1e-4 * YEAR_MINUTES / 30.0))
+    assert not np.isnan(out).any()
+
+
+def test_annualize_rv_zero_input_is_zero_both_paths() -> None:
+    # Degenerate zero vol / zero variance -> zero annualized vol on either path.
+    assert annualize_rv(0.0, 30.0, is_variance=False) == 0.0
+    assert annualize_rv(0.0, 30.0, is_variance=True) == 0.0
+
+
+def test_annualize_rv_negative_vol_path_squares_to_positive() -> None:
+    # On the vol path a (nonsensically) negative vol is squared to a positive variance,
+    # so the magnitude is preserved -- it must NOT be clipped to zero like a negative
+    # variance would be. Pins that the clip lives strictly on the variance, post-square.
+    assert annualize_rv(-0.013, 30.0, is_variance=False) == pytest.approx(
+        annualize_rv(0.013, 30.0, is_variance=False)
+    )
+
+
+def test_debias_window_one_is_all_zero() -> None:
+    # Boundary window=1: each point's trailing mean is itself, so the debiased series is
+    # identically zero with NO leading NaN (window-1 == 0 missing points).
+    s = pd.Series([0.10, -0.02, 0.30, -0.05])
+    out = debias_vrp(s, window=1)
+    assert not out.isna().any()
+    np.testing.assert_allclose(out.to_numpy(), 0.0, atol=1e-15)
+
+
+def test_debias_is_shift_invariant() -> None:
+    # The defining property of debiasing: adding a constant level shift (a different
+    # regime VRP) to the WHOLE series leaves the debiased residual unchanged, because the
+    # trailing mean absorbs the shift exactly. Stronger than "constant -> 0".
+    rng = np.random.default_rng(1)
+    base = pd.Series(rng.normal(0.0, 0.01, 20))
+    shifted = base + 0.5
+    a = debias_vrp(base, window=5)
+    b = debias_vrp(shifted, window=5)
+    pd.testing.assert_series_equal(a, b, check_exact=False, atol=1e-12)
+
+
+def test_debias_propagates_interior_nan_no_fabrication() -> None:
+    # A NaN (missing spread) inside the trailing window must NOT be silently treated as
+    # zero or skipped: with min_periods=window the affected windows come back NaN rather
+    # than fabricating a debiased value from incomplete data.
+    s = pd.Series([0.10, np.nan, 0.30, 0.40, 0.50])
+    out = debias_vrp(s, window=2)
+    assert out.iloc[0:3].isna().all()  # idx0 (warmup), idx1 (is nan), idx2 (window incl nan)
+    assert out.iloc[3:].notna().all()  # clear of the nan -> finite again
+
+
+def test_debias_preserves_index_and_length() -> None:
+    # Output is index-aligned to the input (callers join it back to the spread series).
+    idx = pd.date_range("2024-01-02 09:15", periods=8, freq="min", tz="Asia/Kolkata")
+    s = pd.Series(np.linspace(-0.03, -0.01, 8), index=idx)
+    out = debias_vrp(s, window=4)
+    pd.testing.assert_index_equal(out.index, s.index)
+    assert len(out) == len(s)
