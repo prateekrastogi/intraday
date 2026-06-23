@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from volarb.costs.nse_fees import round_trip_charges
+from volarb.costs.nse_fees import round_trip_charges, structure_round_trip_charges
 
 # --- regime gate thresholds (Johnson 2017 SLOPE; documented long-vol pocket). ---
 # Kept to a handful of named constants so the live param count stays <= 4-6.
@@ -172,3 +172,20 @@ def exit_decision(state: GateState) -> dict:
             }
 
     return {"exit": False, "reason": "hold: timer/stop/edge all within bounds"}
+
+
+def structure_cost_hurdle(legs, qty, trade_date, *, total_vega, cushion=VRP_CUSHION):
+    """Annualized-vol cost hurdle for a full MULTI-LEG structure (straddle / strangle).
+
+    Unlike :func:`cost_hurdle` (a single leg, 2 orders), this charges the whole structure's round
+    trip (a straddle = 4 orders, Rs80 brokerage + both legs' STT/exchange) and divides by the
+    structure's TOTAL vega. ``legs`` is an iterable of ``(premium_in, premium_out)`` per leg;
+    ``total_vega`` is the summed per-contract vega across all legs. A 1.0-vol move changes the
+    structure premium by ``total_vega * qty``, so the vol to recoup costs is
+    ``charges.total / (total_vega * qty)``. For a symmetric ATM straddle this ~equals the per-leg
+    hurdle (charges and vega both ~double); for an asymmetric strangle it does not.
+    """
+    if qty <= 0 or total_vega <= 0:
+        raise ValueError("qty and total_vega must be positive")
+    charges = structure_round_trip_charges(legs, qty, trade_date)
+    return cushion * (charges.total / (total_vega * qty))

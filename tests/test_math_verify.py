@@ -189,3 +189,43 @@ def test_signed_jump_quadratic_scaling():
     assert signed_jump_variation(3.7 * r) == pytest.approx(
         3.7**2 * signed_jump_variation(r), rel=1e-12
     )
+
+
+# 2-leg STRUCTURE cost: a straddle round-trip is 4 orders (Rs80 brokerage), both legs' STT/exch.
+def test_structure_round_trip_is_two_legs():
+    from volarb.costs.nse_fees import round_trip_charges, structure_round_trip_charges
+
+    d = dt.date(2026, 6, 22)
+    s = structure_round_trip_charges([(150.0, 150.0), (140.0, 140.0)], 75, d)
+    call = round_trip_charges(150.0, 150.0, 75, d)
+    put = round_trip_charges(140.0, 140.0, 75, d)
+    assert s.brokerage == pytest.approx(80.0)  # 4 orders (2 legs x buy+sell), not 40
+    assert s.stt == pytest.approx(call.stt + put.stt)  # both legs pay STT on their own premium
+    assert s.exchange == pytest.approx(call.exchange + put.exchange)
+    assert s.total == pytest.approx(call.total + put.total)
+    assert s.total > call.total  # the structure costs more than one leg
+
+
+def test_structure_round_trip_empty_raises():
+    from volarb.costs.nse_fees import structure_round_trip_charges
+
+    with pytest.raises(ValueError):
+        structure_round_trip_charges([], 75, dt.date(2026, 6, 22))
+
+
+def test_structure_cost_hurdle_symmetric_straddle_matches_per_leg():
+    from volarb.strategy.vol_gate import cost_hurdle, structure_cost_hurdle
+
+    d, leg_vega = dt.date(2026, 6, 22), 8.0
+    per_leg = cost_hurdle(150.0, 75, d, vega=leg_vega)
+    struct = structure_cost_hurdle([(150.0, 150.0), (150.0, 150.0)], 75, d, total_vega=2 * leg_vega)
+    assert struct == pytest.approx(per_leg)  # symmetric straddle: doubling cancels
+
+
+def test_structure_cost_hurdle_rejects_bad_inputs():
+    from volarb.strategy.vol_gate import structure_cost_hurdle
+
+    with pytest.raises(ValueError):
+        structure_cost_hurdle([(150.0, 150.0)], 0, dt.date(2026, 6, 22), total_vega=8.0)
+    with pytest.raises(ValueError):
+        structure_cost_hurdle([(150.0, 150.0)], 75, dt.date(2026, 6, 22), total_vega=0.0)

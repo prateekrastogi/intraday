@@ -89,3 +89,31 @@ def round_trip_charges(
 def exercise_stt(intrinsic: float, qty: int) -> float:
     """STT on ITM option exercise = 0.125% of intrinsic value. Square off to avoid it."""
     return intrinsic * qty * STT_EXERCISE_RATE
+
+
+def structure_round_trip_charges(
+    legs,
+    qty: int,
+    trade_date: date,
+    brokerage: float = DEFAULT_BROKERAGE,
+) -> Charges:
+    """Round-trip charges for a MULTI-LEG structure (straddle / strangle): sum of per-leg round trips.
+
+    ``legs`` is an iterable of ``(premium_in, premium_out)``, one per leg -- a NIFTY straddle is
+    ``[(call_in, call_out), (put_in, put_out)]``, i.e. 4 executed orders total, so brokerage is
+    ``4 * DEFAULT_BROKERAGE`` (Rs80) and every leg pays its own STT / exchange / SEBI / GST on its
+    own premium. Use this (not the single-leg ``round_trip_charges``) for the strategy's true
+    structure cost -- otherwise the backtest under-charges a straddle by ~half.
+    """
+    legs = list(legs)
+    if not legs:
+        raise ValueError("a structure needs at least one leg")
+    per_leg = [round_trip_charges(p_in, p_out, qty, trade_date, brokerage) for p_in, p_out in legs]
+    return Charges(
+        stt=sum(c.stt for c in per_leg),
+        exchange=sum(c.exchange for c in per_leg),
+        sebi=sum(c.sebi for c in per_leg),
+        stamp=sum(c.stamp for c in per_leg),
+        brokerage=sum(c.brokerage for c in per_leg),
+        gst=sum(c.gst for c in per_leg),
+    )
