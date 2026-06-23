@@ -56,7 +56,7 @@ def test_annualize_rv_variance_scales_linearly_vol_as_sqrt() -> None:
     horizon_vol = 0.011
     horizon_min = 30.0
     expected = horizon_vol * math.sqrt(YEAR_MINUTES / horizon_min)
-    assert annualize_rv(horizon_vol, horizon_min) == pytest.approx(expected)
+    assert annualize_rv(horizon_vol, horizon_min, is_variance=False) == pytest.approx(expected)
 
 
 def test_annualize_rv_doubling_horizon_variance_scales_inverse() -> None:
@@ -72,7 +72,7 @@ def test_annualize_rv_vectorized_over_series() -> None:
     idx = pd.date_range("2024-01-02 09:15", periods=4, freq="min", tz="Asia/Kolkata")
     horizon_min = 30.0
     vols = pd.Series([0.005, 0.010, 0.015, 0.020], index=idx)
-    out = annualize_rv(vols, horizon_min)
+    out = annualize_rv(vols, horizon_min, is_variance=False)
     factor = math.sqrt(YEAR_MINUTES / horizon_min)
     expected = vols.to_numpy() * factor
     np.testing.assert_allclose(np.asarray(out), expected)
@@ -80,9 +80,9 @@ def test_annualize_rv_vectorized_over_series() -> None:
 
 def test_annualize_rv_rejects_nonpositive_horizon() -> None:
     with pytest.raises(ValueError):
-        annualize_rv(0.01, 0.0)
+        annualize_rv(0.01, 0.0, is_variance=False)
     with pytest.raises(ValueError):
-        annualize_rv(0.01, -30.0)
+        annualize_rv(0.01, -30.0, is_variance=False)
 
 
 # --------------------------------------------------------------------------------------
@@ -103,7 +103,7 @@ def test_spread_consumes_annualized_rv_in_iv_units() -> None:
     horizon_min = 30.0
     atm_iv = 0.18
     horizon_vol = 0.20 / math.sqrt(YEAR_MINUTES / horizon_min)
-    rv_ann = annualize_rv(horizon_vol, horizon_min)
+    rv_ann = annualize_rv(horizon_vol, horizon_min, is_variance=False)
     assert rv_ann == pytest.approx(0.20)  # identical units to atm_iv
     assert rv_iv_spread(rv_ann, atm_iv) == pytest.approx(0.02)
 

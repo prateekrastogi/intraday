@@ -7,6 +7,8 @@ inverter runs in research, backtest and live -> the RV-IV edge axis is computed 
 
 from __future__ import annotations
 
+import math
+
 from nautilus_trader.core.nautilus_pyo3 import imply_vol_and_greeks
 
 YEAR_MINUTES = 365.0 * 24 * 60  # calendar-minute annualization -- be consistent fit<->live
@@ -21,8 +23,11 @@ def years_to_expiry(minutes: float) -> float:
 
 def iv_greeks(price, forward, strike, t_years, is_call, r=DEFAULT_R):
     """Black-76 IV + greeks for one option. None if degenerate (t<=0, price<=intrinsic, solver fails)."""
-    intrinsic = max(forward - strike, 0.0) if is_call else max(strike - forward, 0.0)
-    if t_years <= 0 or price <= intrinsic + 1e-6:
+    if t_years <= 0:
+        return None
+    df = math.exp(-r * t_years)  # Black-76 no-arb lower bound is the DISCOUNTED intrinsic
+    intrinsic = df * (max(forward - strike, 0.0) if is_call else max(strike - forward, 0.0))
+    if price <= intrinsic + 1e-6:
         return None
     try:
         g = imply_vol_and_greeks(
@@ -43,7 +48,14 @@ def atm_iv(quotes, forward, t_years, r=DEFAULT_R, vega_floor=DEFAULT_VEGA_FLOOR)
             pts.append((float(k), g["vol"]))
     if len(pts) < 2:
         return None
-    pts.sort()
+    # collapse duplicate strikes (e.g. a call and a put at the same K both clearing the vega
+    # floor) into one knot -- equal adjacent strikes would divide by zero in interpolation.
+    by_strike: dict[float, list[float]] = {}
+    for kk, vv in pts:
+        by_strike.setdefault(kk, []).append(vv)
+    pts = sorted((kk, sum(vl) / len(vl)) for kk, vl in by_strike.items())
+    if len(pts) < 2:
+        return None
     ks = [p[0] for p in pts]
     vs = [p[1] for p in pts]
     if forward <= ks[0]:

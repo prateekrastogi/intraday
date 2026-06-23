@@ -39,7 +39,7 @@ def annualize_rv(
     rv_forecast_variance_or_vol: float | np.ndarray | pd.Series,
     horizon_min: float,
     *,
-    is_variance: bool = False,
+    is_variance: bool,
 ) -> float | np.ndarray | pd.Series:
     """Annualize a per-horizon RV forecast onto the ATM-IV calendar-minute basis.
 
@@ -60,7 +60,8 @@ def annualize_rv(
         Must be strictly positive.
     is_variance:
         Whether ``rv_forecast_variance_or_vol`` is a variance (``True``) or a vol
-        (``False``, default).
+        (``False``). REQUIRED keyword (no default) so a variance is never silently squared:
+        har_rv emits variance, so pass ``is_variance=True``.
 
     Returns
     -------
@@ -76,7 +77,9 @@ def annualize_rv(
         # vol -> variance so the time-scaling is the simple linear factor.
         horizon_variance = np.square(rv_forecast_variance_or_vol)
 
-    annualized_variance = horizon_variance * scale
+    # OLS (har_rv) can forecast a slightly negative variance near zero -- clip it so the
+    # result is never a silent NaN downstream (which would poison the spread and the gate).
+    annualized_variance = np.maximum(horizon_variance, 0.0) * scale
     return np.sqrt(annualized_variance)
 
 

@@ -86,8 +86,8 @@ def har_features(
     (X, y)
         ``X`` columns are ``rv_<lag>`` = the trailing mean realized variance
         over each lag window ENDING at the bar's own timestamp (inclusive of t,
-        so it is known at t -> no lookahead). ``y`` is the realized *vol*
-        (sqrt of summed forward variance) over the next ``horizon_min`` minutes,
+        so it is known at t -> no lookahead). ``y`` is the realized *variance*
+        (summed forward variance) over the next ``horizon_min`` minutes,
         i.e. strictly after t. Rows where any feature window or the forward
         target window is incomplete are dropped, so X and y share an index and
         are causally aligned by construction.
@@ -139,10 +139,10 @@ def fit_har(y: pd.Series, X: pd.DataFrame, horizon_min: int = 30, bar_min: int =
 
 
 def forecast(res, x_row: pd.Series) -> float:
-    """Point forecast of forward realized vol for one feature row.
+    """Point forecast of forward realized VARIANCE for one feature row (clipped >= 0).
 
     ``x_row`` holds the same lag features as the training X (no constant); the
     intercept is prepended here to match :func:`fit_har`.
     """
     x = np.concatenate([[1.0], x_row.to_numpy(dtype=float)])
-    return float(res.predict(x[None, :])[0])
+    return max(0.0, float(res.predict(x[None, :])[0]))
