@@ -23,3 +23,28 @@ def test_candles_to_frame_normalizes_and_sorts():
 
 def test_candles_to_frame_empty():
     assert candles_to_frame({"Success": []}).empty
+
+
+def test_candles_to_frame_preserves_open_interest_for_options():
+    # real options-row shape (verified on live Breeze 2026-06): carries open_interest + extra metadata
+    payload = {"Success": [
+        {"datetime": "2026-06-22 09:16:00", "open": 145.6, "high": 157.9, "low": 142.75,
+         "close": 157.9, "volume": 2895555, "open_interest": 7138365,
+         "stock_code": "NIFTY", "right": "Call", "strike_price": 24000.0, "expiry_date": "23-JUN-2026"},
+        {"datetime": "2026-06-22 09:15:00", "open": 147.35, "high": 147.35, "low": 130.2,
+         "close": 142.25, "volume": 3101475, "open_interest": 8956025,
+         "stock_code": "NIFTY", "right": "Call", "strike_price": 24000.0, "expiry_date": "23-JUN-2026"},
+    ], "Status": 200, "Error": None}
+    df = candles_to_frame(payload)
+    assert list(df.columns) == ["open", "high", "low", "close", "volume", "open_interest"]
+    assert df.index.is_monotonic_increasing
+    assert df.iloc[0]["open_interest"] == 8956025   # the 09:15 row sorts first, OI kept as number
+    assert df.iloc[0]["close"] == 142.25
+
+
+def test_ist_window_builds_full_session():
+    from datetime import date
+    from volarb.adapters.breeze.history import ist_window
+    f, t = ist_window(date(2026, 6, 19))
+    assert f == "2026-06-19T09:15:00.000Z"        # IST literal (Breeze ignores the Z)
+    assert t == "2026-06-19T15:30:00.000Z"
