@@ -140,3 +140,55 @@ def test_exit_decision_precedence():
     assert "take-profit" in exit_decision(0.4, 0.3, -0.5, 1.0, 60)["reason"]
     assert "drive-decay" in exit_decision(0.1, 0.3, -0.5, -0.1, 60)["reason"]
     assert exit_decision(0.1, 0.3, -0.5, 1.0, 60)["exit"] is False
+
+
+# ---- parabolic-cylinder representation (robust for r/mu -> 0) ----
+from volarb.strategy.risk import F_pc, Fp_pc, G_pc, Gp_pc  # noqa: E402
+
+
+def test_pc_shape():
+    xs = [-0.5, 0.0, 0.5, 1.0]
+    fv = [F_pc(x, P, R) for x in xs]
+    gv = [G_pc(x, P, R) for x in xs]
+    assert all(fv[i] < fv[i + 1] for i in range(len(xs) - 1))
+    assert all(gv[i] > gv[i + 1] for i in range(len(xs) - 1))
+    assert all(Fp_pc(x, P, R) > 0 for x in xs)
+    assert all(Gp_pc(x, P, R) < 0 for x in xs)
+
+
+def test_pc_constant_ratio_vs_integral():
+    # pc and quad are the same solution up to the constant Gamma(r/mu) prefactor -> ratio ~ const.
+    xs = [-0.3, 0.0, 0.4, 0.8]
+    rf = [F_pc(x, P, R) / F(x, P, R) for x in xs]
+    rg = [G_pc(x, P, R) / G(x, P, R) for x in xs]
+    assert np.allclose(rf, rf[0], rtol=1e-3)
+    assert np.allclose(rg, rg[0], rtol=1e-3)
+
+
+def test_pc_matches_quad_thresholds():
+    # two independent representations must give the SAME optimal thresholds.
+    assert take_profit(P, R, C, method="pc") == pytest.approx(
+        take_profit(P, R, C, method="quad"), rel=2e-3
+    )
+    ls = l_star(P, R, C)
+    for ll in (ls - 0.8, ls - 0.2):
+        bpc = take_profit_stoploss(P, R, C, ll, method="pc")
+        bq = take_profit_stoploss(P, R, C, ll, method="quad")
+        assert bpc == pytest.approx(bq, rel=3e-3)
+
+
+def test_pc_robust_in_stiff_regime():
+    # fast mean reversion (r/mu = 0.01): the integral u^{r/mu-1} singularity stiffens; pc stays finite.
+    stiff = OUParams(mu=50.0, theta=0.0, sigma=0.5, ok=True)
+    rr = 0.5
+    xs = [-0.2, 0.0, 0.2]
+    assert all(np.isfinite(F_pc(x, stiff, rr)) and np.isfinite(G_pc(x, stiff, rr)) for x in xs)
+    assert all(F_pc(xs[i], stiff, rr) <= F_pc(xs[i + 1], stiff, rr) for i in range(len(xs) - 1))
+    assert all(G_pc(xs[i], stiff, rr) >= G_pc(xs[i + 1], stiff, rr) for i in range(len(xs) - 1))
+
+
+def test_pc_solver_finite_when_stiff():
+    # moderately stiff (r/mu = 0.1): pc solver returns a finite take-profit > cost.
+    stiff = OUParams(mu=20.0, theta=0.0, sigma=0.5, ok=True)
+    b = take_profit(stiff, 2.0, 0.05, method="pc")
+    assert b is not None and b > 0.05 and np.isfinite(b)

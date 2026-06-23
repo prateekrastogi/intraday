@@ -32,6 +32,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.integrate import IntegrationWarning, quad
 from scipy.optimize import brentq
+from scipy.special import pbdv
 from statsmodels.tsa.stattools import adfuller
 
 __all__ = [
@@ -149,13 +150,16 @@ def _scan_root(fn, lo: float, hi: float, n: int = 60):
     return None
 
 
-def take_profit(p: OUParams, r: float, c: float) -> float | None:
+def take_profit(p: OUParams, r: float, c: float, method: str = "pc") -> float | None:
     """Optimal take-profit b* with NO stop-loss: solves F(b) = (b-c)F'(b)  (Eq 4.3)."""
-    hi = p.theta + 5.0 * p.sigma + abs(c) + 1.0
-    return _scan_root(lambda b: F(b, p, r) - (b - c) * Fp(b, p, r), c + 1e-6, hi)
+    ff, fpf, _, _ = _funcs(method)
+    hi = _scan_hi(p, c)
+    return _scan_root(lambda b: ff(b, p, r) - (b - c) * fpf(b, p, r), c + 1e-6, hi)
 
 
-def take_profit_stoploss(p: OUParams, r: float, c: float, ll: float) -> float | None:
+def take_profit_stoploss(
+    p: OUParams, r: float, c: float, ll: float, method: str = "pc"
+) -> float | None:
     """Optimal take-profit b*_L WITH stop-loss at ll: solves Eq (5.5), valid for ll < L*.
 
     Returns None if ll >= L* (Cor 5.2: delay region empty -> liquidate immediately / don't enter).
@@ -163,14 +167,15 @@ def take_profit_stoploss(p: OUParams, r: float, c: float, ll: float) -> float | 
     Ls = l_star(p, r, c)
     if ll >= Ls:
         return None
-    FL, GL = F(ll, p, r), G(ll, p, r)
+    ff, fpf, gf, gpf = _funcs(method)
+    FL, GL = ff(ll, p, r), gf(ll, p, r)
 
     def res(b):
-        Fb, Gb, Fpb, Gpb = F(b, p, r), G(b, p, r), Fp(b, p, r), Gp(b, p, r)
+        Fb, Gb, Fpb, Gpb = ff(b, p, r), gf(b, p, r), fpf(b, p, r), gpf(b, p, r)
         lhs = ((ll - c) * Gb - (b - c) * GL) * Fpb + ((b - c) * FL - (ll - c) * Fb) * Gpb
         return lhs - (Gb * FL - GL * Fb)
 
-    hi = p.theta + 5.0 * p.sigma + abs(c) + 1.0
+    hi = _scan_hi(p, c)
     return _scan_root(res, Ls + 1e-6, hi)
 
 
@@ -263,3 +268,62 @@ def exit_decision(
     if marginal_carry <= 0.0:
         return {"exit": True, "reason": "drive-decay: gamma rent no longer covers theta+cost"}
     return {"exit": False, "reason": "hold: edge alive, above stop, below take-profit"}
+
+
+# ---------------- parabolic-cylinder representation of F,G (robust as r/mu -> 0) ----------------
+# F,G also solve L u = r u via parabolic-cylinder (Weber) functions D_v. With
+#   zeta = (x-theta)*sqrt(2 mu)/sigma,  nu = r/mu:
+#   F ∝ e^{zeta^2/4} D_{-nu}(-zeta)  (increasing) ,  G ∝ e^{zeta^2/4} D_{-nu}(zeta)  (decreasing).
+# The constant Gamma(nu) prefactor of the integral form (3.3)/(3.4) is dropped: the threshold
+# equations (4.3)/(5.5) pair one F-type with one G-type in every term, so they are invariant to it.
+# Well-conditioned as r/mu -> 0 (D_0 = e^{-z^2/4}), where the integral's u^{r/mu-1} singularity stiffens.
+# scipy.special.pbdv(v, x) -> (D_v(x), D_v'(x)), so derivatives are exact.
+
+
+def _pc(x, p: OUParams, r: float):
+    kappa = np.sqrt(2.0 * p.mu) / p.sigma
+    zeta = (x - p.theta) * kappa
+    nu = r / p.mu
+    dm, dpm = pbdv(-nu, -zeta)  # D_{-nu}(-zeta), D'_{-nu}(-zeta)
+    dpz, dppz = pbdv(-nu, zeta)  # D_{-nu}( zeta), D'_{-nu}( zeta)
+    e = np.exp(0.25 * zeta * zeta)
+    return zeta, kappa, e, dm, dpm, dpz, dppz
+
+
+def F_pc(x: float, p: OUParams, r: float) -> float:
+    """Increasing fundamental solution via parabolic-cylinder D (robust for small r/mu)."""
+    zeta, kappa, e, dm, dpm, dpz, dppz = _pc(x, p, r)
+    return float(e * dm)
+
+
+def Fp_pc(x: float, p: OUParams, r: float) -> float:
+    """F'(x) via D: e^{zeta^2/4} kappa (zeta/2 D_{-nu}(-zeta) - D'_{-nu}(-zeta))."""
+    zeta, kappa, e, dm, dpm, dpz, dppz = _pc(x, p, r)
+    return float(e * kappa * (0.5 * zeta * dm - dpm))
+
+
+def G_pc(x: float, p: OUParams, r: float) -> float:
+    """Decreasing fundamental solution via parabolic-cylinder D."""
+    zeta, kappa, e, dm, dpm, dpz, dppz = _pc(x, p, r)
+    return float(e * dpz)
+
+
+def Gp_pc(x: float, p: OUParams, r: float) -> float:
+    """G'(x) via D: e^{zeta^2/4} kappa (zeta/2 D_{-nu}(zeta) + D'_{-nu}(zeta))."""
+    zeta, kappa, e, dm, dpm, dpz, dppz = _pc(x, p, r)
+    return float(e * kappa * (0.5 * zeta * dpz + dppz))
+
+
+def _funcs(method: str):
+    """Return (F, F', G, G') for the chosen backend: 'pc' (parabolic-cylinder) or 'quad' (integral)."""
+    if method == "pc":
+        return F_pc, Fp_pc, G_pc, Gp_pc
+    if method == "quad":
+        return F, Fp, G, Gp
+    raise ValueError(f"unknown method {method!r} (use 'pc' or 'quad')")
+
+
+def _scan_hi(p: OUParams, c: float, z_max: float = 10.0) -> float:
+    """Upper bracket for the b* root-scan, bounded in STANDARDIZED units (zeta <= z_max) so the
+    parabolic-cylinder evaluation stays conditioned even for fast mean reversion (large mu)."""
+    return p.theta + z_max * p.sigma / np.sqrt(2.0 * p.mu) + abs(c)
