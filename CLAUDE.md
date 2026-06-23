@@ -15,19 +15,19 @@ Writing our own **adapter / glue / signal logic is expected** where no quality l
 | Concern | Library | Why it clears the quality bar |
 |---|---|---|
 | Engine (backtest **+** live, one code path) | **NautilusTrader** (pin a v1.x) | options-native (`OptionContract`) + true backtest↔live parity; 24k★, daily commits. *No NSE adapter — we write our own **Breeze** adapter (pure Python).* |
-| Pricing / IV / greeks | **vollib** (`vollib.black`, Black-76) | MIT, LetsBeRational solver. **NOT** mibian (abandoned, GPL) or py_vollib_vectorized (5yr unmaintained, ITM bug). |
+| Pricing / IV / greeks | **NautilusTrader** (`nautilus_pyo3.imply_vol_and_greeks`, Black-76 via b=0) | Already a dep; Rust LetsBeRational; SAME inverter in research+backtest+live (no parity drift). |
 | HAR-RV | **statsmodels** (OLS + HAC SEs) | HAR is OLS w/ Newey-West. **No GARCH / `arch`** — HAR is the decided forecaster (per vol_research). |
 | Broker + data (NSE) | **breeze-connect** (ICICI Breeze) | official, MIT; free 1-sec underlying + best free per-strike options. *Caveat: WS/session reliability — the adapter must be reconnect-robust and handle the daily session token.* |
 | Dataframes / IO / storage | pandas / polars / pyarrow / duckdb | standard |
 
-**Avoid (failed the quality/fit bar):** GARCH/`arch` (not needed — HAR decided), mibian, py_vollib_vectorized, vectorbt/pro (array paradigm fights options; non-permissive license), OpenAlgo as a default layer (extra AGPL hop for a single broker — call breeze-connect directly), lumibot, backtrader.
+**Avoid (failed the quality/fit bar):** GARCH/`arch` (not needed — HAR decided), vollib & py_vollib_vectorized (redundant -- Nautilus ships imply_vol/GreeksData), mibian, vectorbt/pro (array paradigm fights options; non-permissive license), OpenAlgo as a default layer (extra AGPL hop for a single broker — call breeze-connect directly), lumibot, backtrader.
 
 ### Write ourselves — ONLY these (no quality lib covers them):
 - **Breeze adapter** for NautilusTrader (data + execution) — pure Python; daily session-token auth; robust WS reconnect.
 - **Signal logic**: HAR-RV forecast + Lee-Mykland jump flag (on NIFTY **futures**, 1-min) + the **RV−IV spread** model (*the edge axis*).
 - **Strategy class** (Nautilus Strategy subclass) + the **spread-gated entry** (enter only when forecast RV beats IV + the regime VRP + costs).
 - **NSE cost model** (full STT / txn / SEBI / GST / stamp / brokerage / bid-ask stack) — **build FIRST** (per IMPLEMENTATION.md §7).
-- **Config** + a thin vollib wrapper.
+- A thin wrapper over Nautilus `imply_vol_and_greeks` + IV guards (vega floor, t-floor, intrinsic filter, ATM smile-interp).
 
 ## Rule for Claude (enforce on every change)
 1. **Before writing any non-trivial component, search for a QUALITY library first** — check last release, commit activity, adoption, test coverage, license. Adopt only if it clears that bar; an abandoned/niche lib is worse than our own well-tested code.

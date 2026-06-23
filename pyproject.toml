@@ -5,8 +5,7 @@ description = "Intraday NIFTY straddle/strangle volatility arbitrage (realized-v
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "nautilus_trader",   # engine: backtest+live parity, options-native (pin exact v1.x in uv.lock; beta API)
-    "vollib",            # options pricing / IV / greeks (Black-76, LetsBeRational)
+    "nautilus_trader",   # engine: backtest+live parity, options-native, + IV/greeks (imply_vol_and_greeks / GreeksData)
     "statsmodels",       # HAR-RV via OLS + HAC standard errors (no GARCH)
     "breeze-connect",    # ICICI Breeze: data + execution (1-sec underlying + per-strike options incl. expired)
     "pandas",            # Nautilus wrangler boundary + parquet IO

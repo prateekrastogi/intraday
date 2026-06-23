@@ -17,7 +17,7 @@ Trade **magnitude, never direction**. **In-scope:** short-dated + NIFTY index + 
 
 ## Quality stack (grades in CLAUDE.md)
 - **Engine + backtest↔live:** NautilusTrader (pin v1.x) — options-native, *same strategy class* sim↔live.
-- **Pricing / IV:** vollib (Black-76).
+- **Pricing / IV / greeks:** NautilusTrader built-in `imply_vol_and_greeks` (Rust LetsBeRational, Black-76 via b=0) -- one inverter across research+backtest+live.
 - **HAR-RV:** statsmodels (OLS + HAC). **No GARCH.**
 - **Broker + data:** breeze-connect (ICICI Breeze) — 1-sec underlying + per-strike options (incl. expired).
   *WS/session reliability is the known risk; the adapter must be reconnect-robust.*
@@ -28,7 +28,7 @@ Trade **magnitude, never direction**. **In-scope:** short-dated + NIFTY index + 
 3. **RV−IV spread model** — *the edge axis*; benchmark IV = India VIX / ATM IV; de-bias by regime VRP; trade only the residual that beats IV.
 4. **Strategy** (Nautilus Strategy subclass): straddle / slight-OTM strangle entry/exit/sizing, gated on the spread.
 5. **NSE cost model** — built FIRST.
-6. Thin vollib wrapper.
+6. Thin wrapper over Nautilus `imply_vol_and_greeks` + IV guards (vega floor, t-floor, intrinsic filter, ATM smile-interp).
 
 *Optional (≤4–6 param ceiling, only if they beat OOS net-of-cost): HARQ (measurement-error), signed jumps + realized semivariance, term-structure / IV-percentile gating (Johnson 2017 SLOPE — inverted term structure / low IV-percentile). Skip rough-vol, ML/DL, exotic jump machinery.*
 
