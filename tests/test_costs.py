@@ -11,7 +11,7 @@ from volarb.costs.nse_fees import (
     stt_sell_rate,
 )
 
-QTY = 75          # NIFTY lot size
+QTY = 75          # NIFTY lot size (current; illustrative -- lot size is date-varying and lives in the instrument layer, NOT the cost model, which is qty-based)
 PREMIUM = 100.0   # per unit -> turnover = 7500
 
 
