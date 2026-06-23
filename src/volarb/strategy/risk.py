@@ -20,8 +20,9 @@ exit yields the OPTION P&L, so the state X here is the position's accumulated ed
 (in spread units), and the spread->P&L map is the flagged transfer heuristic to validate OOS.
 
 Numerical note: the F/G integrals are well-conditioned for r/mu ~ O(1). For an intraday
-problem with very fast mean-reversion (r/mu -> 0) the u^(r/mu-1) singularity stiffens; a
-parabolic-cylinder (scipy.special.pbdv) representation is the robust upgrade (TODO).
+problem with very fast mean-reversion (r/mu -> 0) the u^(r/mu-1) singularity stiffens, so the
+default backend is the parabolic-cylinder (scipy.special.pbdv) representation (method='pc');
+the integral form (method='quad') is kept and cross-validated to give identical thresholds.
 """
 
 from __future__ import annotations
