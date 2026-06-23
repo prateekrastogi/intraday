@@ -41,8 +41,8 @@ Trade **magnitude, never direction**. **In-scope:** short-dated + NIFTY index + 
 0. ~~Repo + uv deps + pin Nautilus~~ -- DONE (uv.lock committed; Oracle A1 bootstrapped, uv synced, imports OK).
 1. ~~NSE cost model~~ -- **DONE** (date-aware calculator + 6 golden tests: costs/nse_fees.py, tests/test_costs.py; Nautilus FeeModel wrapper deferred to backtest integration).
 2. ~~Breeze data adapter~~ -- **DONE & validated on live Breeze** (auth + history[IST/OHLCV/OI] + ratelimit + robust multi-instrument backfill: index + front-month futures + India VIX + 2 weekly expiries × ATM-band × {CE,PE}, expiry-day widening, discover-don't-compute expiries, retry/backoff, clean budget-stop, resumable manifest; 24 tests). Produces the raw long parquet lake. *Nautilus catalog writer (data/catalog.py) + research panel (data/panel.py) fold into steps 3-5.*
-3. **HAR-RV forecast + Lee-Mykland** on NIFTY futures.
-4. **RV−IV spread signal** (de-biased by regime VRP) → straddle/strangle entry/exit.
+3. ~~HAR-RV forecast + Lee-Mykland~~ -- **IMPLEMENTED** (signals/{har_rv,lee_mykland,semivariance,quarticity}.py + data/panel.py + pricing/greeks.py via Nautilus Black-76; unit-tested on synthetic data, 122 tests). Offline FIT on real pulled data = step 5.
+4. ~~RV−IV spread signal~~ -- **IMPLEMENTED** (signals/{spread,surface}.py + strategy/vol_gate.py; de-biased by regime VRP, Johnson SLOPE gate, cost-hurdle from nse_fees, RV/IV unit-reconciled). Walk-forward OOS validation = step 5.
 5. **Walk-forward OOS backtest on REAL Breeze option data**, vs (a) blind straddle (b) opening-momentum baseline. **← THE GATE.**
 6. If it clears costs OOS → **paper (Breeze)** → small live on a **fixed-IP VPS, SEBI-compliant.**
 
