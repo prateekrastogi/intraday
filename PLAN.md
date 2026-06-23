@@ -38,8 +38,8 @@ Trade **magnitude, never direction**. **In-scope:** short-dated + NIFTY index + 
 - **Model the bid-ask spread explicitly** (tight NIFTY ATM, wide OTM) — dominates short-dated/frequent. Round-trip ≈ 0.8% premium ATM, 30%+ far-OTM → **avoid far-OTM scalping.** Golden-file tested.
 
 ## Build order (IMPLEMENTATION.md §7)
-0. Repo + uv deps; pin Nautilus v1.x.
-1. **NSE cost model FIRST** (Nautilus FeeModel).
+0. ~~Repo + uv deps + pin Nautilus~~ -- DONE (uv.lock committed; Oracle A1 bootstrapped, uv synced, imports OK).
+1. **NSE cost model** -- IN PROGRESS (pure calculator + golden tests: costs/nse_fees.py, tests/test_costs.py; Nautilus FeeModel wrapper at integration).
 2. **Breeze data adapter** — minute underlying + per-strike option history → Nautilus Parquet catalog.
 3. **HAR-RV forecast + Lee-Mykland** on NIFTY futures.
 4. **RV−IV spread signal** (de-biased by regime VRP) → straddle/strangle entry/exit.
