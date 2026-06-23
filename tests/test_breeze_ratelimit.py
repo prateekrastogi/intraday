@@ -1,4 +1,5 @@
 """Tests for the Breeze rate-limit primitives + fetch-planning helpers (no live session needed)."""
+
 from datetime import date
 
 import pytest
@@ -14,16 +15,21 @@ from volarb.adapters.breeze.ratelimit import (
 def test_classify_response():
     assert classify_response({"Success": [{"x": 1}], "Status": 200}) == "ok"
     assert classify_response({"Success": [], "Status": 200}) == "empty"
-    assert classify_response({"Status": 5, "Error": "Limit exceed: API call per day: "}) == "rate_day"
-    assert classify_response({"Status": 5, "Error": "Limit exceed: API call per minute"}) == "rate_minute"
+    assert (
+        classify_response({"Status": 5, "Error": "Limit exceed: API call per day: "}) == "rate_day"
+    )
+    assert (
+        classify_response({"Status": 5, "Error": "Limit exceed: API call per minute"})
+        == "rate_minute"
+    )
 
 
 def test_rate_limiter_paces_to_min_interval():
     slept = []
-    t = [0.0]                              # frozen clock -> 2nd call must wait the full interval
+    t = [0.0]  # frozen clock -> 2nd call must wait the full interval
     rl = RateLimiter(min_interval=1.0, sleep=slept.append, clock=lambda: t[0])
-    rl.acquire()                           # first call: no wait
-    rl.acquire()                           # clock frozen -> sleeps ~1.0s
+    rl.acquire()  # first call: no wait
+    rl.acquire()  # clock frozen -> sleeps ~1.0s
     assert slept and slept[-1] == pytest.approx(1.0)
 
 

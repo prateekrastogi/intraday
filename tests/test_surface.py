@@ -1,5 +1,3 @@
-## tests/signals/test_surface.py
-
 """Synthetic-data tests for volarb.signals.surface (Johnson 2017 SLOPE gating).
 
 No real lake, creds, or network: all IVs are hand-constructed numbers so the assertions
@@ -33,22 +31,24 @@ def test_term_slope_flat_is_zero() -> None:
     assert term_slope(0.20, 0.20) == pytest.approx(0.0)
 
 
-# --- iv_percentile: empirical rank correctness -----------------------------------------
+# --- iv_percentile: empirical rank correctness (self excluded, strict <) ----------------
 
 
 def test_iv_percentile_rank_known_values() -> None:
     hist = [0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.22, 0.24, 0.26]
-    # now = 0.18 -> values <= 0.18 in population {hist + 0.18} = 6 of 10 = 0.6.
-    assert iv_percentile(0.18, hist) == pytest.approx(0.6)
+    # now = 0.18 -> hist strictly below 0.18 = {.10,.12,.14,.16} = 4 of 9.
+    assert iv_percentile(0.18, hist) == pytest.approx(4 / 9)
 
 
 def test_iv_percentile_max_is_one() -> None:
     assert iv_percentile(0.50, [0.10, 0.12, 0.14]) == pytest.approx(1.0)
 
 
-def test_iv_percentile_min_is_low() -> None:
-    # now below all history => only itself is <= now => 1 of 4 = 0.25.
-    assert iv_percentile(0.05, [0.10, 0.12, 0.14]) == pytest.approx(0.25)
+def test_iv_percentile_strict_all_time_low_is_zero() -> None:
+    # now below all history => 0 of 3 strictly below => 0.0 (no 1/(n+1) floor).
+    assert iv_percentile(0.05, [0.10, 0.12, 0.14]) == pytest.approx(0.0)
+    # and an all-time low with SHORT history opens the Johnson low-percentile gate.
+    assert johnson_gate(slope=0.04, iv_pct=iv_percentile(0.05, [0.10, 0.12, 0.14])) is True
 
 
 def test_iv_percentile_always_in_unit_interval() -> None:
@@ -60,8 +60,8 @@ def test_iv_percentile_always_in_unit_interval() -> None:
 
 def test_iv_percentile_ignores_nans_in_history() -> None:
     hist = [0.10, float("nan"), 0.20, math.inf]
-    # finite history = {0.10, 0.20}; now = 0.20 -> 3 of 3 <= 0.20 = 1.0.
-    assert iv_percentile(0.20, hist) == pytest.approx(1.0)
+    # finite history = {0.10, 0.20}; strictly below 0.20 = {0.10} = 1 of 2 = 0.5.
+    assert iv_percentile(0.20, hist) == pytest.approx(0.5)
 
 
 def test_iv_percentile_empty_history_is_nan() -> None:

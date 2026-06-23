@@ -4,12 +4,13 @@ Pace WELL under the cap -- real enforcement is stricter/buggier than published (
 error at ~170 calls). Steady pacing = 1.0s/call (~60/min); stop at ~4,500/day for headroom.
 Rate rejection is NOT HTTP 429 -- it is a JSON body {"Status": 5, "Error": "Limit exceed: ..."}.
 """
+
 from __future__ import annotations
 
 import time
 
-DEFAULT_MIN_INTERVAL = 1.0    # seconds between calls (~60/min, under the 100/min cap)
-DEFAULT_DAILY_BUDGET = 4500   # stop here (10% under the 5,000/day cap)
+DEFAULT_MIN_INTERVAL = 1.0  # seconds between calls (~60/min, under the 100/min cap)
+DEFAULT_DAILY_BUDGET = 4500  # stop here (10% under the 5,000/day cap)
 
 
 class DailyBudgetExceeded(Exception):
@@ -19,8 +20,13 @@ class DailyBudgetExceeded(Exception):
 class RateLimiter:
     """Min-interval pacing + a per-day call budget. sleep/clock are injectable for testing."""
 
-    def __init__(self, min_interval=DEFAULT_MIN_INTERVAL, daily_budget=DEFAULT_DAILY_BUDGET,
-                 sleep=time.sleep, clock=time.monotonic):
+    def __init__(
+        self,
+        min_interval=DEFAULT_MIN_INTERVAL,
+        daily_budget=DEFAULT_DAILY_BUDGET,
+        sleep=time.sleep,
+        clock=time.monotonic,
+    ):
         self.min_interval = min_interval
         self.daily_budget = daily_budget
         self._sleep = sleep
@@ -47,7 +53,7 @@ def classify_response(resp: dict) -> str:
     can be a transient glitch -> retry a couple times before accepting "no data".
     """
     status = resp.get("Status")
-    err = (resp.get("Error") or "")
+    err = resp.get("Error") or ""
     if status == 5 or "limit exceed" in err.lower():
         return "rate_day" if "per day" in err.lower() else "rate_minute"
     rows = resp.get("Success") or resp.get("data") or []

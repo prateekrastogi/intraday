@@ -34,28 +34,27 @@ _MU_43 = 2.0 ** (2.0 / 3.0) * math.gamma(7.0 / 6.0) / math.sqrt(math.pi)
 _TRIPOWER_NORM = _MU_43**-3
 
 
-def realized_quarticity(log_returns: np.ndarray, n: int | None = None) -> float:
-    """Realized quarticity RQ = (n/3) * sum(r_i^4).
+def realized_quarticity(log_returns: np.ndarray) -> float:
+    """Realized quarticity RQ = (n/3) * sum(r_i^4), n = number of returns in the window.
 
     Parameters
     ----------
     log_returns : 1-d array of intraday log-returns within ONE window.
-    n : number of returns to scale by. Defaults to ``len(log_returns)``.
-        Pass it explicitly only if you intentionally annualize/rescale to a
-        different return count than the array length.
 
-    Consistent (x sampling frequency) for the integrated quarticity. Very noisy
-    at 1-min -- see module docstring.
+    n is ALWAYS the window length -- the only consistent integrated-quarticity estimator;
+    there is no rescale knob (a mismatched n produces a meaningless hybrid). If you need
+    annualized RQ, do it in spread.py: RQ annualizes as variance^2, i.e. by
+    (YEAR_MINUTES / window_minutes)^2 -- never by substituting n. Very noisy at 1-min
+    (see module docstring); prefer ``tripower_quarticity`` at high frequency.
     """
     r = np.asarray(log_returns, dtype=float).ravel()
     if r.size == 0:
         return 0.0
-    if n is None:
-        n = r.size
+    n = r.size
     return (n / 3.0) * float(np.sum(r**4))
 
 
-def tripower_quarticity(log_returns: np.ndarray, n: int | None = None) -> float:
+def tripower_quarticity(log_returns: np.ndarray) -> float:
     """Noise-/jump-robust realized quarticity (tripower quarticity, TPQ).
 
     TPQ = n * mu_{4/3}^-3 * sum_{i=3..n} |r_{i-2}|^(4/3) |r_{i-1}|^(4/3) |r_i|^(4/3)
@@ -63,11 +62,11 @@ def tripower_quarticity(log_returns: np.ndarray, n: int | None = None) -> float:
     By spreading each term across three adjacent returns, a single large (jump)
     return cannot blow up the estimate the way it does in the r^4 sum, so on a
     series with an isolated outlier TPQ <= ordinary RQ. Preferred over
-    ``realized_quarticity`` for the HARQ interaction at 1-min sampling.
+    ``realized_quarticity`` for the HARQ interaction at 1-min sampling. n is the
+    window length (no rescale knob).
     """
     r = np.asarray(log_returns, dtype=float).ravel()
-    if n is None:
-        n = r.size
+    n = r.size
     if r.size < 3:
         return 0.0
     a = np.abs(r) ** (4.0 / 3.0)
@@ -85,6 +84,11 @@ def harq_features(rv_lags: np.ndarray, rq: np.ndarray) -> np.ndarray:
                          + b2 * RV_t^(mid) + b3 * RV_t^(long) + e
 
     so the loading on the short lag shrinks when RQ_t is large (noisy RV).
+
+    CONTRACT: rv_lags[:, 0] (the short lag) and ``rq`` MUST be computed over the SAME window
+    with matching normalization (both per-period levels) or the b1Q interaction scale is
+    meaningless. Keep the RV-lag convention (level vs mean) identical between
+    ``har_rv.har_features`` and the RQ fed here.
 
     Parameters
     ----------

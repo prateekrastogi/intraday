@@ -12,3 +12,4 @@ secrets.*
 logs/
 .pytest_cache/
 .ruff_cache/
+._*

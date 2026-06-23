@@ -28,12 +28,11 @@ def test_realized_quarticity_known_constant_series() -> None:
     assert realized_quarticity(r) == pytest.approx(expected)
 
 
-def test_realized_quarticity_explicit_n_overrides_length() -> None:
+def test_realized_quarticity_uses_window_length() -> None:
     r = np.array([0.01, -0.02, 0.0])
-    s4 = np.sum(r**4)
-    assert realized_quarticity(r, n=375) == pytest.approx((375 / 3.0) * s4)
-    # default n == len(r)
-    assert realized_quarticity(r) == pytest.approx((3 / 3.0) * s4)
+    assert realized_quarticity(r) == pytest.approx(
+        (3 / 3.0) * np.sum(r**4)
+    )  # n == len(r), no override
 
 
 def test_realized_quarticity_empty_is_zero() -> None:

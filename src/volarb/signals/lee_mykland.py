@@ -44,9 +44,10 @@ __all__ = [
     "default_window",
 ]
 
-# c = E[|Z|] for a standard normal = sqrt(2/pi); the bipower scaling constant. The
-# expected product of two independent |Z| is c^2, so dividing bipower variation by c^2
-# (equivalently mu_1^{-2}) makes sigma_hat^2 an unbiased local-variance estimate.
+# c = E[|Z|] for a standard normal = sqrt(2/pi). It appears ONLY in the Gumbel constants
+# C_n/S_n -- NOT in sigma_hat. Lee-Mykland's sigma_hat^2 = (1/(K-2)) sum |r||r| deliberately
+# keeps the c^2 bias, and C_n/S_n are derived for exactly that biased estimator; dividing
+# sigma_hat by c^2 would mis-calibrate the threshold (~165x too conservative).
 BIPOWER_C: float = np.sqrt(2.0 / np.pi)
 
 
@@ -66,12 +67,13 @@ def default_window(n_obs: int, multiplier: float = 1.4) -> int:
 def local_bipower_sigma(log_returns: np.ndarray, K: int) -> np.ndarray:
     """Rolling local volatility (sigma_hat_t) from trailing bipower variation.
 
-    sigma_hat_t^2 is the mean of adjacent |r| products over the K returns ending *just
-    before* t, divided by the bipower constant c^2. The window ends at t-1 (it excludes
-    r_t itself) so the statistic L_t = r_t / sigma_hat_t does not standardise the candidate
-    return by a sigma that already contains it -- this is what gives the test power against
-    a jump at t. Bipower variation pairs adjacent returns, so one large jump inside the
-    window contaminates only two products and cannot blow up the local-vol estimate.
+    sigma_hat_t^2 = (1/(K-2)) * sum of adjacent |r| products over the K returns ending *just
+    before* t (the Lee-Mykland estimator -- the c^2 bias is left in; C_n/S_n correct for it).
+    The window ends at t-1 (it excludes r_t itself) so the statistic L_t = r_t / sigma_hat_t
+    does not standardise the candidate return by a sigma that already contains it -- this is
+    what gives the test power against a jump at t. Bipower variation pairs adjacent returns,
+    so one large jump inside the window contaminates only two products and cannot blow up the
+    local-vol estimate.
 
     Args:
         log_returns: 1-D array of 1-min log-returns within a single session. NaNs (e.g. an
@@ -98,12 +100,12 @@ def local_bipower_sigma(log_returns: np.ndarray, K: int) -> np.ndarray:
     # (t-K+1 .. t-1). We need at least K returns of history strictly before t.
     for t in range(K, n):
         window_bp = bp[t - K + 1 : t]  # K-1 products, all strictly before t
-        # mean product / c^2 -> local variance; sqrt -> local vol. K-2 denominator matches
-        # the count of finite products in a clean window (Lee-Mykland eq. for sigma_hat).
+        # Lee-Mykland sigma_hat^2 = sum |r||r| / (K-2). The c=sqrt(2/pi) bias is left IN;
+        # C_n/S_n correct for it. Do NOT divide by c^2 here (that mis-calibrates the test).
         finite = window_bp[np.isfinite(window_bp)]
         if finite.size == 0:
             continue
-        sigma[t] = np.sqrt(finite.sum() / (BIPOWER_C**2 * (K - 2)))
+        sigma[t] = np.sqrt(finite.sum() / (K - 2))
     return sigma
 
 

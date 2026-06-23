@@ -6,6 +6,7 @@ Breeze's session token is interactive and DAILY (expires 24h/midnight). Flow:
   3. make_breeze(api_key, api_secret, api_session) -> a ready BreezeConnect
 Only API *calls* must egress from the whitelisted IP; the browser login can be from anywhere.
 """
+
 from __future__ import annotations
 
 import os

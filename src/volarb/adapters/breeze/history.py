@@ -11,6 +11,7 @@ session 09:15->15:30 returns 375 one-minute candles; sending UTC silently CLIPS 
 
 Options rows additionally carry open_interest (index rows do not) -- candles_to_frame preserves it.
 """
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -18,7 +19,7 @@ from datetime import date, timedelta
 import pandas as pd
 
 _OHLC = ["open", "high", "low", "close", "volume"]
-_OPTIONAL = ["open_interest"]      # present on options/futures rows, absent on the index
+_OPTIONAL = ["open_interest"]  # present on options/futures rows, absent on the index
 _NUMERIC = _OHLC + _OPTIONAL
 
 # 1000-candle/request cap -> conservative calendar-days per call by interval (NSE ~375 min/session)
@@ -49,13 +50,30 @@ def ist_window(d: date, start_hm: str = "09:15", end_hm: str = "15:30") -> tuple
     return (f"{iso}T{start_hm}:00.000Z", f"{iso}T{end_hm}:00.000Z")
 
 
-def fetch_ohlc(bz, *, interval, from_date, to_date, stock_code, exchange_code,
-               product_type="", expiry_date="", right="", strike_price="") -> pd.DataFrame:
+def fetch_ohlc(
+    bz,
+    *,
+    interval,
+    from_date,
+    to_date,
+    stock_code,
+    exchange_code,
+    product_type="",
+    expiry_date="",
+    right="",
+    strike_price="",
+) -> pd.DataFrame:
     """Thin wrapper over BreezeConnect.get_historical_data_v2 -> normalized OHLCV(+OI) frame."""
     resp = bz.get_historical_data_v2(
-        interval=interval, from_date=from_date, to_date=to_date,
-        stock_code=stock_code, exchange_code=exchange_code, product_type=product_type,
-        expiry_date=expiry_date, right=right, strike_price=strike_price,
+        interval=interval,
+        from_date=from_date,
+        to_date=to_date,
+        stock_code=stock_code,
+        exchange_code=exchange_code,
+        product_type=product_type,
+        expiry_date=expiry_date,
+        right=right,
+        strike_price=strike_price,
     )
     return candles_to_frame(resp)
 

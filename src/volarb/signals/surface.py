@@ -26,11 +26,12 @@ def term_slope(atm_iv_front: float, atm_iv_next: float) -> float:
 
 
 def iv_percentile(atm_iv_now: float, atm_iv_history: Iterable[float]) -> float:
-    """Percentile rank in [0, 1] of the current ATM IV within its own history.
+    """Percentile rank in [0, 1] of the current ATM IV within its history (self EXCLUDED).
 
-    Fraction of historical observations <= the current value (a standard empirical-CDF /
-    percentile rank). ``atm_iv_now`` itself is included in the population so a value at or
-    above every prior reading ranks 1.0 and a value at or below all of them ranks toward 0.
+    ``count(hist < now) / len(hist)`` -- fraction of HISTORICAL observations strictly below the
+    current value. Self is not in the population, so a strict all-time low ranks 0.0 regardless
+    of history length (no 1/(n+1) floor), letting the low-IV-percentile gate open early in the
+    backfill when history is short.
 
     Returns ``nan`` if there is no finite history to rank against.
     """
@@ -39,8 +40,7 @@ def iv_percentile(atm_iv_now: float, atm_iv_history: Iterable[float]) -> float:
     now = float(atm_iv_now)
     if hist.size == 0 or not np.isfinite(now):
         return float("nan")
-    population = np.append(hist, now)
-    return float(np.count_nonzero(population <= now) / population.size)
+    return float(np.count_nonzero(hist < now) / hist.size)
 
 
 def johnson_gate(

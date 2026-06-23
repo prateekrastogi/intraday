@@ -4,13 +4,14 @@ REUSE nautilus_trader.core.nautilus_pyo3.imply_vol_and_greeks (Rust LetsBeRation
 b=0 and s = the FUTURES forward (index-options-on-futures convention; NO dividend hack). The same
 inverter runs in research, backtest and live -> the RV-IV edge axis is computed identically (no drift).
 """
+
 from __future__ import annotations
 
 from nautilus_trader.core.nautilus_pyo3 import imply_vol_and_greeks
 
-YEAR_MINUTES = 365.0 * 24 * 60      # calendar-minute annualization -- be consistent fit<->live
-DEFAULT_R = 0.065                   # India short rate ~6.5%; tiny effect on weekly IV (small r*T)
-DEFAULT_VEGA_FLOOR = 0.5            # below this vega, IV inversion is unstable -> drop the strike
+YEAR_MINUTES = 365.0 * 24 * 60  # calendar-minute annualization -- be consistent fit<->live
+DEFAULT_R = 0.065  # India short rate ~6.5%; tiny effect on weekly IV (small r*T)
+DEFAULT_VEGA_FLOOR = 0.5  # below this vega, IV inversion is unstable -> drop the strike
 
 
 def years_to_expiry(minutes: float) -> float:
@@ -24,7 +25,9 @@ def iv_greeks(price, forward, strike, t_years, is_call, r=DEFAULT_R):
     if t_years <= 0 or price <= intrinsic + 1e-6:
         return None
     try:
-        g = imply_vol_and_greeks(s=forward, r=r, b=0.0, is_call=is_call, k=strike, t=t_years, price=price)
+        g = imply_vol_and_greeks(
+            s=forward, r=r, b=0.0, is_call=is_call, k=strike, t=t_years, price=price
+        )
     except Exception:
         return None
     return {"vol": g.vol, "delta": g.delta, "gamma": g.gamma, "vega": g.vega, "theta": g.theta}

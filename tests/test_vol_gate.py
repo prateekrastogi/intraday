@@ -1,77 +1,47 @@
 """Synthetic tests for the long-vol entry/exit gate.
 
-No real lake, no creds, no network. The cost foundation (`volarb.costs.nse_fees`) is
-stubbed with a deterministic ~0.8%-of-premium round-trip so the math is checkable; the
-stub matches the documented signature
-`round_trip_charges(premium_in, premium_out, qty, trade_date) -> Charges(.total)`.
+No real lake, no creds, no network. Uses the REAL volarb.costs.nse_fees foundation (no stub)
+so the cost-hurdle math is checked end-to-end against the actual NSE round-trip charges.
 """
 
 from __future__ import annotations
 
 import datetime as dt
-import sys
-import types
-from dataclasses import dataclass
 
 import pytest
 
-# --- stub the cost foundation BEFORE importing the module under test. -------------
-_FEE_RATE = 0.008  # ~0.8% of round-trip premium notional on an ATM NIFTY option.
-
-
-@dataclass(frozen=True)
-class _Charges:
-    total: float
-
-
-def _round_trip_charges(premium_in, premium_out, qty, trade_date):
-    return _Charges(total=_FEE_RATE * (premium_in + premium_out) * qty / 2.0)
-
-
-_costs_pkg = types.ModuleType("volarb.costs")
-_nse = types.ModuleType("volarb.costs.nse_fees")
-_nse.round_trip_charges = _round_trip_charges
-_nse.Charges = _Charges
-sys.modules.setdefault("volarb.costs", _costs_pkg)
-sys.modules["volarb.costs.nse_fees"] = _nse
-
-from volarb.strategy.vol_gate import (  # noqa: E402
-    GateState,
-    cost_hurdle,
-    entry_decision,
-    exit_decision,
-)
+from volarb.costs.nse_fees import round_trip_charges
+from volarb.strategy.vol_gate import GateState, cost_hurdle, entry_decision, exit_decision
 
 TRADE_DATE = dt.date(2026, 6, 23)
 
 
 # --------------------------------------------------------------------------------- #
-# cost_hurdle
+# cost_hurdle  (single unit: annualized vol; vega required)
 # --------------------------------------------------------------------------------- #
-def test_cost_hurdle_premium_fraction_matches_fee_times_cushion():
-    from volarb.strategy.vol_gate import VRP_CUSHION
-
-    h = cost_hurdle(premium=120.0, qty=75, trade_date=TRADE_DATE)
-    assert h == pytest.approx(VRP_CUSHION * _FEE_RATE)
+def test_cost_hurdle_requires_vega():
+    with pytest.raises(TypeError):
+        cost_hurdle(premium=120.0, qty=75, trade_date=TRADE_DATE)  # vega is required
 
 
 def test_cost_hurdle_vol_units_inverts_vega():
     from volarb.strategy.vol_gate import VRP_CUSHION
 
     premium, qty, vega = 120.0, 75, 8.0
-    charges_total = _FEE_RATE * premium * qty
-    expected = VRP_CUSHION * charges_total / (vega * qty)
-    h = cost_hurdle(premium, qty, TRADE_DATE, vega=vega, t_years=0.001)
-    assert h == pytest.approx(expected)
+    expected = (
+        VRP_CUSHION * round_trip_charges(premium, premium, qty, TRADE_DATE).total / (vega * qty)
+    )
+    h = cost_hurdle(premium, qty, TRADE_DATE, vega=vega)
+    assert h == pytest.approx(expected) and h > 0
 
 
 def test_cost_hurdle_rejects_bad_inputs():
     with pytest.raises(ValueError):
-        cost_hurdle(premium=0.0, qty=75, trade_date=TRADE_DATE)
+        cost_hurdle(premium=0.0, qty=75, trade_date=TRADE_DATE, vega=8.0)
     with pytest.raises(ValueError):
-        cost_hurdle(premium=120.0, qty=0, trade_date=TRADE_DATE)
+        cost_hurdle(premium=120.0, qty=0, trade_date=TRADE_DATE, vega=8.0)
     with pytest.raises(ValueError):
-        cost_hurdle(120.0, 75, TRADE_DATE, vega=0.0, t_years=0.001)
+        cost_hurdle(120.0, 75, TRADE_DATE, vega=0.0)
 
 
 # --------------------------------------------------------------------------------- #

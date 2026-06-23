@@ -47,45 +47,25 @@ def cost_hurdle(
     qty: int,
     trade_date,
     *,
-    vega: float | None = None,
-    t_years: float | None = None,
+    vega: float,
     cushion: float = VRP_CUSHION,
 ) -> float:
-    """Minimum RV-IV spread the edge must clear before an entry is worthwhile.
+    """Minimum RV-IV spread (ANNUALIZED VOL) the edge must clear before an entry.
 
-    The hurdle is derived from real NSE round-trip frictions via
-    `volarb.costs.nse_fees.round_trip_charges` (~0.8% of premium on an ATM NIFTY
-    option). We assume a flat round-trip on the premium just paid (premium_in ==
-    premium_out == `premium`) for the per-leg charge estimate.
+    Derived from real NSE round-trip frictions (`volarb.costs.nse_fees.round_trip_charges`,
+    ~0.8% of premium on an ATM NIFTY option) converted to vol units via the option's vega:
+    a 1.0-vol move changes premium by `vega` per contract, so the vol needed to recoup the
+    round-trip is total_charges / (vega * qty). Scaled by `cushion` for the regime VRP.
 
-    Units:
-      * Default -> a PREMIUM FRACTION: charges / premium notional, scaled by `cushion`
-        to embed the regime VRP. Use this when gating the spread expressed as a
-        premium fraction.
-      * If `vega` and `t_years` are supplied -> an ANNUALIZED-VOL hurdle in the same
-        calendar-minute basis as ATM IV, so it can be differenced directly against the
-        RV-IV spread. A 1-vol-point move changes premium by `vega` per unit, so the
-        vol-points needed to cover charges is charges / (vega * qty), i.e. we invert
-        the option's local vega sensitivity.
-
-    Reuses the cost foundation; adds no pricing of its own.
+    Returns ONE unit only -- an annualized-vol hurdle in the same calendar-minute basis as
+    ATM IV -- so it differences directly against the RV-IV spread (no unit ambiguity).
     """
     if premium <= 0 or qty <= 0:
         raise ValueError("premium and qty must be positive")
-
+    if vega <= 0:
+        raise ValueError("vega must be positive to convert charges to a vol-unit hurdle")
     charges = round_trip_charges(premium, premium, qty, trade_date)
-    notional = premium * qty
-
-    if vega is not None and t_years is not None:
-        if vega <= 0:
-            raise ValueError("vega must be positive to convert to a vol-unit hurdle")
-        # charges are total INR; vega is premium-change per 1.0 vol (per contract).
-        # vol-fraction needed to recoup costs = total_charges / (vega * qty).
-        vol_hurdle = charges.total / (vega * qty)
-        return cushion * vol_hurdle
-
-    # premium-fraction hurdle.
-    return cushion * (charges.total / notional)
+    return cushion * (charges.total / (vega * qty))
 
 
 def _regime_ok(regime: dict) -> tuple[bool, str]:

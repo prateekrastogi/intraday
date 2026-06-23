@@ -112,14 +112,12 @@ def har_features(
     # --- target: realized vol over the FORWARD window (t, t+horizon] -----------
     # Forward sum of variance strictly after t: reverse, trailing-sum, reverse,
     # then shift by one bar so row t excludes its own bar (uses t+1 .. t+h).
-    fwd_var = (
-        rv[::-1]
-        .rolling(window=horizon_bars, min_periods=horizon_bars)
-        .sum()[::-1]
-        .shift(-1)
-    )
-    y = np.sqrt(fwd_var)
-    y.name = "rv_fwd"
+    fwd_var = rv[::-1].rolling(window=horizon_bars, min_periods=horizon_bars).sum()[::-1].shift(-1)
+    # Target = forward realized VARIANCE (variance-on-variance HAR): same functional as the
+    # features, so the downstream RV-IV spread differences like-for-like. sqrt(->vol) is applied
+    # only at annualization in spread.py (annualize_rv(..., is_variance=True)).
+    y = fwd_var.copy()
+    y.name = "var_fwd"
 
     # --- align causally: keep rows with complete features AND complete target --
     valid = X.notna().all(axis=1) & y.notna()
