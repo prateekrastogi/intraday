@@ -62,3 +62,30 @@ below Kelly; **hard daily-loss kill-switch** (mandatory, unhedged short-dated op
 Research-grade, **not a validated edge.** The make-or-break is **step 5** (real-option-data OOS net-of-cost on
 NIFTY); everything before is plumbing. *(NautilusTrader also ships crypto adapters → BTC-daily, where the edge
 is strongest per §5, is testable later with minimal glue.)*
+
+## EOD overnight→open model (strategy/eod_vol.py) — added 2026-06
+
+A distinct **overnight leg** that emerged from the directional/vol research (bt8→bt13), SEPARATE from the
+intraday RV−IV spread-mean-reversion leg (steps 4/4b). Thesis: NIFTY intraday vol is FRONT-LOADED (open
+09:15–09:45 annualized RV ~0.115 vs ~0.07 rest-of-day) and clusters → forecast next-day vol (daily Corsi
+HAR), and on days the SHRUNK forecast beats the close ATM IV by more than COSTS, buy the ATM straddle at
+close, hold overnight, exit ~10:15 after the opening expansion. No price stop (convex defined-risk; the
+premium-at-risk cap + time-exit are the controls).
+
+**Hardened per two adversarial-verification workflows** (code review + entry/exit math-soundness):
+- ENTRY = absolute `vol_gate.cost_hurdle` + shrinkage-corrected (centered-posterior) edge — replaces the
+  unsound trailing-quantile gate (which traded ~25% of days regardless of edge sign + had selection bias).
+- EXIT = drive-decay (`greeks_envelope.theta_dominates`) OR fixed-time backstop = the finite-horizon argmax;
+  Leung-Li b* (risk.py) left UNWIRED by design (one-shot transient, not a recurrent OU; `fit_ou` false-
+  positives ~99.7% on it, so this is enforced, not assumed).
+- SIZING = premium-at-risk Kelly base (NOT margin), single behavioral haircut, AGGREGATE premium cap;
+  event/DTE exclusion; entry greeks check; daily kill-switch.
+- ANNUALIZATION = enforceable `annualized_daily_vol` (×252 trading days), fixing an over-annualization bug
+  caught in re-validation (calendar-minute `annualize_rv(var,375)` spuriously inverted the gap to forecast≫IV).
+
+**Honest status:** the headline +2.75% (gated, exit-10:15) came from the UNSOUND quantile gate and is
+largely an artifact (selection + annualization), as the math review predicted. The SOUND gate (cost-hurdle
++ shrinkage + ×252) fires only **5/136 days** in the 9-month sample (+0.55%, n=5 = noise) — it correctly
+abstains when the de-biased edge can't beat the VRP+cost. **Not a confirmed edge.** The make-or-break is
+the **3-yr multi-regime pull** (5 trades → ~15–40 over 3yr = a testable sample) + open-spread on the actual
+trade days. 384 tests; risk.py optimal-stopping stays the separate intraday-spread leg.

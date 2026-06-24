@@ -146,3 +146,46 @@ def forecast(res, x_row: pd.Series) -> float:
     """
     x = np.concatenate([[1.0], x_row.to_numpy(dtype=float)])
     return max(0.0, float(res.predict(x[None, :])[0]))
+
+
+def har_daily_features(
+    rv_daily: pd.Series, lags: tuple[int, ...] = (1, 5, 22)
+) -> tuple[pd.DataFrame, pd.Series]:
+    """Classic Corsi (2009) DAILY HAR-RV features + next-day target -- the EOD overnight->open forecast.
+
+    Unlike the intraday cascade above (minute lags, forward intraday window), this operates on a series
+    of DAILY realized variances (one value per session) and forecasts the NEXT day's RV from trailing
+    1/5/22-day means (daily/weekly/monthly components). Causal: each feature window ENDS at day t
+    (rolling, uses only <= t); the target is RV_{t+1} (shift(-1), strictly future -> no lookahead).
+    Returns (X, y) sharing a causal index; fit with :func:`fit_har` (1-step) and predict next-day
+    VARIANCE with :func:`forecast` (clipped >= 0; annualize downstream via spread.annualize_rv).
+    """
+    if min(lags) < 1:
+        raise ValueError("lags must be >= 1 day")
+    rv = rv_daily.astype(float)
+    feats = {f"rv_{lag}d": rv.rolling(window=lag, min_periods=lag).mean() for lag in lags}
+    X = pd.DataFrame(feats, index=rv.index)
+    y = rv.shift(-1)  # next day's realized variance (strictly future)
+    y.name = "var_next"
+    valid = X.notna().all(axis=1) & y.notna()
+    return X.loc[valid], y.loc[valid]
+
+
+def walk_forward_daily_forecast(rv_daily, lags=(1, 5, 22), min_train: int = 40, bar_min: int = 5):
+    """No-lookahead EXPANDING walk-forward of the daily HAR-RV: forecast each day's NEXT-day RV using a
+    model fit ONLY on (X, y) pairs whose target is <= that day (the model never sees the future target).
+
+    Returns a pd.Series indexed by the feature/decision day t, of next-day VARIANCE forecasts -- the CAUSAL
+    way to feed eod_vol.overnight_gap. Annualize each via spread.annualize_rv(var, is_variance=True,
+    horizon_min=SESSION_MINUTES) before differencing against IV. This is the contract the live/backtest
+    caller MUST use: fitting :func:`fit_har` on the FULL returned (X, y) and predicting the last row would
+    train on future targets (lookahead).
+    """
+    X, y = har_daily_features(rv_daily, lags)
+    if len(X) <= min_train:
+        return pd.Series(dtype=float, name="var_fwd_wf")
+    out = {}
+    for i in range(min_train, len(X)):
+        res = fit_har(y.iloc[:i], X.iloc[:i], horizon_min=bar_min, bar_min=bar_min)
+        out[X.index[i]] = forecast(res, X.iloc[i])
+    return pd.Series(out, name="var_fwd_wf")

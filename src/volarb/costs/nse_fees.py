@@ -117,3 +117,24 @@ def structure_round_trip_charges(
         brokerage=sum(c.brokerage for c in per_leg),
         gst=sum(c.gst for c in per_leg),
     )
+
+
+def structure_spread_cost(legs, qty, spread_in_frac, spread_out_frac=None):
+    """Half bid-ask spread cost (Rs) for crossing on entry + exit of a multi-leg structure.
+
+    ``legs``: iterable of (premium_in, premium_out) per leg. You buy at ~mid + half-spread on entry and
+    sell at ~mid - half-spread on exit, so the round-trip spread paid per leg is approximately
+    (spread_in/2)*premium_in + (spread_out/2)*premium_out, times ``qty``. ``spread_*_frac`` are the FULL
+    bid-ask spreads as a fraction of premium (e.g. 0.006 = the measured ~0.6% ATM open spread). This is
+    SEPARATE from :func:`structure_round_trip_charges` (statutory fees) and added to it by the backtest.
+    """
+    legs = list(legs)
+    if spread_out_frac is None:
+        spread_out_frac = spread_in_frac
+    if not legs:
+        raise ValueError("legs must be non-empty (consistency with structure_round_trip_charges)")
+    if qty <= 0 or spread_in_frac < 0 or spread_out_frac < 0:
+        raise ValueError("qty must be > 0 and spreads must be non-negative")
+    return float(
+        sum((spread_in_frac / 2.0) * pin + (spread_out_frac / 2.0) * pout for pin, pout in legs) * qty
+    )
