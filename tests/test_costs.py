@@ -168,3 +168,22 @@ def test_structure_single_leg_equals_round_trip():
 def test_structure_empty_legs_raises():
     with pytest.raises(ValueError):
         structure_round_trip_charges([], QTY, date(2026, 6, 22))
+
+
+def test_structure_round_trip_per_leg_qty_backspread():
+    """1x2 backspread: the long leg (2 lots) must be charged on its own larger qty (per-leg qty)."""
+    import datetime as dt
+
+    from volarb.costs.nse_fees import structure_round_trip_charges
+
+    d = dt.date(2025, 1, 15)
+    lot = 75
+    # short 1 lot near-money, long 2 lots OTM (unequal ratio)
+    legs_ratio = [(50.0, 90.0, 2 * lot), (140.0, 110.0, 1 * lot)]   # (in, out, leg_qty)
+    legs_equal = [(50.0, 90.0), (140.0, 110.0)]                      # scalar qty path (both = lot)
+    c_ratio = structure_round_trip_charges(legs_ratio, lot, d).total
+    c_equal = structure_round_trip_charges(legs_equal, lot, d).total
+    assert c_ratio > c_equal > 0                                     # doubling the long leg costs more
+    # backward-compat: a 2-tuple leg with leg_qty==scalar qty matches the scalar path
+    same = structure_round_trip_charges([(50.0, 90.0, lot), (140.0, 110.0, lot)], lot, d).total
+    assert same == c_equal

@@ -99,7 +99,7 @@ def structure_round_trip_charges(
 ) -> Charges:
     """Round-trip charges for a MULTI-LEG structure (straddle / strangle): sum of per-leg round trips.
 
-    ``legs`` is an iterable of ``(premium_in, premium_out)``, one per leg -- a NIFTY straddle is
+    ``legs`` is an iterable of ``(premium_in, premium_out)`` (uses scalar ``qty``) OR ``(premium_in, premium_out, leg_qty)`` (per-leg qty, for unequal-ratio backspreads), one per leg -- a NIFTY straddle is
     ``[(call_in, call_out), (put_in, put_out)]``, i.e. 4 executed orders total, so brokerage is
     ``4 * DEFAULT_BROKERAGE`` (Rs80) and every leg pays its own STT / exchange / SEBI / GST on its
     own premium. Use this (not the single-leg ``round_trip_charges``) for the strategy's true
@@ -108,7 +108,10 @@ def structure_round_trip_charges(
     legs = list(legs)
     if not legs:
         raise ValueError("a structure needs at least one leg")
-    per_leg = [round_trip_charges(p_in, p_out, qty, trade_date, brokerage) for p_in, p_out in legs]
+    per_leg = []
+    for leg in legs:
+        leg_qty = leg[2] if len(leg) > 2 else qty  # (premium_in, premium_out[, leg_qty]); unequal ratio legs
+        per_leg.append(round_trip_charges(leg[0], leg[1], leg_qty, trade_date, brokerage))
     return Charges(
         stt=sum(c.stt for c in per_leg),
         exchange=sum(c.exchange for c in per_leg),
@@ -135,6 +138,8 @@ def structure_spread_cost(legs, qty, spread_in_frac, spread_out_frac=None):
         raise ValueError("legs must be non-empty (consistency with structure_round_trip_charges)")
     if qty <= 0 or spread_in_frac < 0 or spread_out_frac < 0:
         raise ValueError("qty must be > 0 and spreads must be non-negative")
-    return float(
-        sum((spread_in_frac / 2.0) * pin + (spread_out_frac / 2.0) * pout for pin, pout in legs) * qty
-    )
+    total = 0.0
+    for leg in legs:
+        leg_qty = leg[2] if len(leg) > 2 else qty  # per-leg qty for unequal ratio backspreads
+        total += ((spread_in_frac / 2.0) * leg[0] + (spread_out_frac / 2.0) * leg[1]) * leg_qty
+    return float(total)

@@ -89,3 +89,14 @@ largely an artifact (selection + annualization), as the math review predicted. T
 abstains when the de-biased edge can't beat the VRP+cost. **Not a confirmed edge.** The make-or-break is
 the **3-yr multi-regime pull** (5 trades → ~15–40 over 3yr = a testable sample) + open-spread on the actual
 trade days. 384 tests; risk.py optimal-stopping stays the separate intraday-spread leg.
+
+## CURRENT STRATEGY (2026-06): jump-continuation ratio backspread (full clean rewrite)
+Pivot from long-vol straddles (no net-of-cost edge found, index or RELIANCE) to **CALL/PUT ratio
+backspreads** entered on a **confirmed intraday Lee-Mykland jump in the CONTINUATION direction** (1-min).
+- ENTRY (`strategy/jump_entry.py`): confirmed jump + sign + signed-jump-variation/momentum agreement; up→call, down→put; enter next bar; guards (one-position, cooldown, DTE, late-day).
+- STRUCTURE (`strategy/backspread.py`): sell n_short near-money, buy n_long>n_short OTM; **convexity HARD gate** (net_gamma/vega>0, min long-delta), small net **debit** allowed; legs emitted **longs-first**; abstains when no convex structure exists.
+- EXIT: EOD square-off (close ITM short pre-expiry) > continuation take-profit > middle-zone reversal/thesis-invalidation > drive-decay; **no price stop** (defined max-loss + convex tail).
+- MARGIN (`strategy/margin.py`): broker-aligned = structure **max-loss** + small exposure (**NO Black-Scholes**); hedge (longs-first) lowers the short's margin to the defined risk. SIZING (`strategy/sizing.py`): min(Kelly-on-max-loss, margin budget, aggregate-risk cap).
+- REUSE: greeks (iv_greeks/vega_per_vol), nse_fees (per-leg-qty extension), lee_mykland, semivariance, risk (Kelly/kill-switch/greeks-envelope), panel, adapters.
+- DELETED (full clean): straddle legs `eod_vol`/`vol_gate`/`straddle`, vol-forecast signals `har_rv`/`spread`/`surface`/`quarticity`, risk.py's Leung-Li OU block — all superseded. 193 tests, ruff clean.
+- Backtest (next): jump-continuation backspread on `nifty1y` (front-weekly vs monthly), no-lookahead, net of fees+spread, vs naked-directional/random baselines.
