@@ -7,7 +7,7 @@ import datetime as dt
 
 import pytest
 
-from volarb.backtest.splits import Fold, final_holdout, walk_forward, walk_forward_with_holdout
+from volarb.run.backtest import Fold, final_holdout, walk_forward, walk_forward_with_holdout
 
 
 def _days(n: int) -> list[dt.date]:
