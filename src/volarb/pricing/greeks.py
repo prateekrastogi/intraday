@@ -15,6 +15,12 @@ YEAR_MINUTES = 365.0 * 24 * 60  # calendar-minute annualization -- be consistent
 DEFAULT_R = 0.065  # India short rate ~6.5%; tiny effect on weekly IV (small r*T)
 DEFAULT_VEGA_FLOOR = 0.5  # below this vega, IV inversion is unstable -> drop the strike
 
+# Nautilus/LetsBeRational reports vega PER-1%-VOL ("per vol point"): a 0.01 (1-point) vol move
+# changes the premium by g.vega (~single digits for a NIFTY weekly ATM). The RV-IV spread and
+# cost_hurdle work in FRACTION / per-1.0-vol annualized-vol units -> multiply by this to convert.
+# Verified empirically: analytic F*e^{-rT}*phi(d1)*sqrt(T) == 100 * nautilus g.vega, exactly.
+VEGA_PER_VOL = 100.0
+
 
 def years_to_expiry(minutes: float) -> float:
     """Calendar-minute time-to-expiry in years (floored so t>0 for the solver)."""
@@ -22,7 +28,11 @@ def years_to_expiry(minutes: float) -> float:
 
 
 def iv_greeks(price, forward, strike, t_years, is_call, r=DEFAULT_R):
-    """Black-76 IV + greeks for one option. None if degenerate (t<=0, price<=intrinsic, solver fails)."""
+    """Black-76 IV + greeks for one option. None if degenerate (t<=0, price<=intrinsic, solver fails).
+
+    NOTE: ``vega`` is per-1%-vol (Nautilus convention, ~single digits for a NIFTY weekly ATM). For
+    the cost hurdle / fraction-valued RV-IV spread, convert with :func:`vega_per_vol` (x100).
+    """
     if t_years <= 0:
         return None
     df = math.exp(-r * t_years)  # Black-76 no-arb lower bound is the DISCOUNTED intrinsic
@@ -36,6 +46,17 @@ def iv_greeks(price, forward, strike, t_years, is_call, r=DEFAULT_R):
     except Exception:
         return None
     return {"vol": g.vol, "delta": g.delta, "gamma": g.gamma, "vega": g.vega, "theta": g.theta}
+
+
+def vega_per_vol(g: dict) -> float:
+    """Per-1.0-vol vega (premium change per 1.00 = 100% vol move) from an :func:`iv_greeks` dict.
+
+    ``iv_greeks`` returns Nautilus vega in per-1%-vol units (the trader / vega-floor convention).
+    ``cost_hurdle`` / ``structure_cost_hurdle`` and the fraction-valued RV-IV spread need per-1.0-vol.
+    ALWAYS route greeks vega through here before passing it to a cost hurdle -- the raw per-1%-vol
+    value inflates the hurdle ~100x (the units bug the first OOS backtest surfaced as 0 trades).
+    """
+    return float(g["vega"]) * VEGA_PER_VOL
 
 
 def atm_iv(quotes, forward, t_years, r=DEFAULT_R, vega_floor=DEFAULT_VEGA_FLOOR):

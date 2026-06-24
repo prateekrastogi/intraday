@@ -57,6 +57,10 @@ def cost_hurdle(
     a 1.0-vol move changes premium by `vega` per contract, so the vol needed to recoup the
     round-trip is total_charges / (vega * qty). Scaled by `cushion` for the regime VRP.
 
+    ``vega`` is PER-1.0-vol (premium change per 1.00 vol). Route Nautilus / ``iv_greeks`` per-1%-vol
+    vega through :func:`volarb.pricing.greeks.vega_per_vol` first -- the raw greeks vega is 100x too
+    small here and would make the hurdle 100x too large (never trades).
+
     Returns ONE unit only -- an annualized-vol hurdle in the same calendar-minute basis as
     ATM IV -- so it differences directly against the RV-IV spread (no unit ambiguity).
     """
@@ -180,7 +184,8 @@ def structure_cost_hurdle(legs, qty, trade_date, *, total_vega, cushion=VRP_CUSH
     Unlike :func:`cost_hurdle` (a single leg, 2 orders), this charges the whole structure's round
     trip (a straddle = 4 orders, Rs80 brokerage + both legs' STT/exchange) and divides by the
     structure's TOTAL vega. ``legs`` is an iterable of ``(premium_in, premium_out)`` per leg;
-    ``total_vega`` is the summed per-contract vega across all legs. A 1.0-vol move changes the
+    ``total_vega`` is the summed per-contract PER-1.0-vol vega across all legs (route each leg's
+    ``iv_greeks`` vega through :func:`volarb.pricing.greeks.vega_per_vol`). A 1.0-vol move changes the
     structure premium by ``total_vega * qty``, so the vol to recoup costs is
     ``charges.total / (total_vega * qty)``. For a symmetric ATM straddle this ~equals the per-leg
     hurdle (charges and vega both ~double); for an asymmetric strangle it does not.

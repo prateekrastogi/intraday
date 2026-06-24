@@ -229,3 +229,20 @@ def test_structure_cost_hurdle_rejects_bad_inputs():
         structure_cost_hurdle([(150.0, 150.0)], 0, dt.date(2026, 6, 22), total_vega=8.0)
     with pytest.raises(ValueError):
         structure_cost_hurdle([(150.0, 150.0)], 75, dt.date(2026, 6, 22), total_vega=0.0)
+
+
+# T-units -- vega convention: iv_greeks is per-1%-vol but cost_hurdle needs per-1.0-vol. Routing
+# through vega_per_vol() fixes the 100x units bug the first OOS backtest surfaced (gate took 0 trades).
+def test_vega_per_vol_and_cost_hurdle_chain():
+    from volarb.pricing.greeks import VEGA_PER_VOL, iv_greeks, vega_per_vol
+
+    g = iv_greeks(price=160.0, forward=24115.0, strike=24100.0, t_years=2 / 365, is_call=True)
+    assert g is not None
+    assert VEGA_PER_VOL == 100.0
+    assert vega_per_vol(g) == pytest.approx(g["vega"] * 100.0)
+    assert 100.0 < vega_per_vol(g) < 5000.0  # per-1.0-vol NIFTY weekly ATM vega ~ hundreds
+
+    h_ok = cost_hurdle(160.0, 75, TRADE_DATE, vega=vega_per_vol(g))
+    h_bug = cost_hurdle(160.0, 75, TRADE_DATE, vega=g["vega"])  # raw per-1%-vol = the bug
+    assert 0.0003 < h_ok < 0.02   # small FRACTION, differences cleanly vs the RV-IV spread
+    assert h_bug > 50 * h_ok      # raw greeks vega -> ~100x too large -> never trades
