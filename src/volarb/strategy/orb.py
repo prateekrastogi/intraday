@@ -189,9 +189,14 @@ def metrics(trades, n_days, size=0.20):
         peak = max(peak, eq)
         mdd = min(mdd, eq / peak - 1)
     srt = np.sort(a)[::-1]
+    asc = srt[::-1]
     tot = a.sum() if a.sum() != 0 else 1e-9
     return {
         "n": len(a), "win": 100 * (a > 0).mean(), "ev": a.mean() * 100,
         "sharpe": (a.mean() / a.std() * math.sqrt(len(a) / (n_days / ANN))) if a.std() > 0 else 0.0,
-        "final_eq": eq, "max_dd": mdd * 100, "top3_pnl": 100 * srt[:3].sum() / tot,
+        "final_eq": eq, "max_dd": mdd * 100,
+        # fat-tail / winner-concentration: top-N share of total PnL, and EV/trade after dropping the top-N winners
+        "top1_pnl": 100 * srt[0] / tot, "top3_pnl": 100 * srt[:3].sum() / tot,
+        "ev_drop1": asc[:-1].mean() * 100 if len(a) > 1 else 0.0,
+        "ev_drop3": asc[:-3].mean() * 100 if len(a) > 3 else 0.0,
     }

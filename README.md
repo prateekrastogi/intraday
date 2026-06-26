@@ -23,6 +23,21 @@
 | NIFTY weekly | ITM δ0.65, hold 5d | ~0.7–0.9 | +7–9% | ~−40% | biggest per-trade punch (weekly gamma); single instrument |
 | RELIANCE monthly | ITM, hold 5d | ~0.3 | +3% | — | ≈ NIFTY-monthly — instrument barely matters at equal expiry |
 
+## Winner concentration — the fat-tail tell
+The edge is convex (cut losers small, ride rare big winners), so a handful of trades carry most of the PnL. The
+honest test is **how much EV/trade survives once you drop the top winners** — printed by `run.backtest`. Full sample:
+
+| Vehicle | EV/trade | top-1 / top-3 share of PnL | EV net of top-1 | EV net of top-3 |
+|---|---|---|---|---|
+| NIFTY-weekly | +8.3% | 46% / 127% | +4.5% | **−2.3%** |
+| Crude | +5.5% | 98% / 210% | **+0.1%** | −6.7% |
+| 10-stock basket (pooled, 788 tr) | +2.6% | 32% / 59% | positive | **positive** |
+
+Single instruments are **one-to-three-trade lotteries**: drop the top 3 and NIFTY-weekly turns negative, and
+Crude's *entire* edge is a single trade (net of top-1 ≈ 0). Only the **diversified basket survives** dropping its
+top trades (top-3 = 59% < 100% of PnL) — pooling ~10× the trades samples the winner tail far better. This is *the*
+reason to deploy the basket form and to treat any single-instrument Sharpe as an optimistic upper bound.
+
 ## Findings across the fields tested
 
 **Moneyness** (apples-to-apples, *matched* hold N=5, 10-stock basket): **ITM > ATM > OTM**, monotonic on Sharpe AND

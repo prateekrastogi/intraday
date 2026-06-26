@@ -25,7 +25,10 @@ def _line(tag, m, cov=None):
         return
     c = f" cov {cov:3.0f}%" if cov is not None else ""
     print(f"  {tag:14s} n={m['n']:4d} win={m['win']:2.0f}% EV={m['ev']:+5.1f}%/tr "
-          f"Sharpe={m['sharpe']:+.2f} eq={m['final_eq']:.2f}x DD={m['max_dd']:+.0f}% top3={m['top3_pnl']:.0f}%{c}")
+          f"Sharpe={m['sharpe']:+.2f} eq={m['final_eq']:.2f}x DD={m['max_dd']:+.0f}%{c}")
+    # winner-concentration: how much of the edge is a few tail winners
+    print(f"  {'':14s} top1/top3 of PnL={m['top1_pnl']:.0f}%/{m['top3_pnl']:.0f}%  "
+          f"EV net of top1={m['ev_drop1']:+.1f}%/tr, net of top3={m['ev_drop3']:+.1f}%/tr")
 
 
 def backtest(cfg):
