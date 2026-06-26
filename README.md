@@ -34,9 +34,13 @@ honest test is **how much EV/trade survives once you drop the top winners** — 
 | 10-stock basket (pooled, 788 tr) | +2.6% | 32% / 59% | positive | **positive** |
 
 Single instruments are **one-to-three-trade lotteries**: drop the top 3 and NIFTY-weekly turns negative, and
-Crude's *entire* edge is a single trade (net of top-1 ≈ 0). Only the **diversified basket survives** dropping its
-top trades (top-3 = 59% < 100% of PnL) — pooling ~10× the trades samples the winner tail far better. This is *the*
-reason to deploy the basket form and to treat any single-instrument Sharpe as an optimistic upper bound.
+Crude's *entire* edge is a single trade (net of top-1 ≈ 0). The **diversified basket is the least concentrated** —
+full-sample top-3 = 59% vs NIFTY's 127% / Crude's 210% — because pooling ~10× the trades samples the winner tail
+better. **But it is not robust either:** the 59% is the *full 3-year* number; on the held-out ~1-year OOS slice
+(≈260 trades) the basket's top-3 was also **≈102% of PnL** (verified), so drop-top-3 is negative *there* too.
+Diversification *reduces* concentration but does **not** make a thin window drop-top-3-proof — **no vehicle here is.**
+Treat every Sharpe as an optimistic upper bound; the edge is only trustworthy across **many independent trades**
+(the full-sample basket), never a single year or a single instrument.
 
 ## Findings across the fields tested
 
