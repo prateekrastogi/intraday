@@ -1,7 +1,7 @@
 # volarb — intraday options research (NIFTY · stocks · MCX)
 
 > This repo began as an intraday NIFTY **long-volatility** straddle/strangle vol-arb engine (the realized-vs-implied
-> *spread* thesis from `vol_research`). Three years of real 1-minute OOS backtesting **refuted that thesis** and
+> *spread* thesis). Three years of real 1-minute OOS backtesting **refuted that thesis** and
 > surfaced a different, validated edge. **This README is the current state of findings.** The old straddle build
 > plan (`PLAN.md`) is superseded and removed; engine/stack notes are at the bottom; dev rules live in `CLAUDE.md`.
 
