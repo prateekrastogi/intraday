@@ -81,6 +81,37 @@ sell-into-expansion; overnight→open vol harvest (open-spread-fragile, regime-d
 *futures* (STT eats it); gamma-regime gating; the 20-day *daily* Donchian breakout (the *intraday* ORB is what
 carries the edge — same instruments score ~0.1 on the daily breakout vs ~0.8 on the intraday one).
 
+## Leveraged futures vs. convex options — and the gap-market boundary
+
+We tested the natural objection: *the edge is the cut-loss-fast stop, so why pay option theta — just run the same
+ORB on a leveraged future?* It loses on every axis that matters once you look past Sharpe.
+
+- **Sharpe is leverage-invariant.** A levered future's Sharpe equals the underlying ORB Sharpe; leverage scales
+  EV *and* drawdown identically and adds nothing. At *matched* leverage the **option beats the future** (NIFTY
+  0.70 vs 0.42; Crude 0.39 vs 0.18) — the option's tail-convexity manufactures the rare +70–300% winners a linear
+  future cannot.
+- **High leverage ruins two different ways.** At 50× (NIFTY) / 32× (Crude) on a *gappy* (real, closing) market a
+  single overnight gap-through blows past the stop — Crude 32× printed a **−108% trade → account wiped**. Drop to
+  a *survivable* 10–20× and the blow-ups vanish (no single trade exceeds −100%), but **full-capital compounding
+  still vol-drags to ruin**: every 10–20× cell ends **below 1× final equity** (best NIFTY 0.54× at 20×/12% clean
+  fills; best Crude 0.29×), versus the option at 0.91 Sharpe / 2.38× (NIFTY) and 1.25× (Crude) at 20% sizing. The
+  ~80%-stop-rate fat tail that the option *monetizes* convexly, the levered future just *bleeds*.
+
+**The gap-market boundary (why the option is structurally irreplaceable here).** An option caps loss at the premium
+**regardless of whether the market is open** — gap-proof by construction. A linear future's loss is uncapped through
+an overnight/weekend gap, and no stop can fill inside a gap. So the verdict splits on market hours:
+
+| Market | Gap risk | Best vehicle |
+|---|---|---|
+| **Closing markets — NIFTY (overnight + weekend), MCX (overnight)** | uncapped gap-through | **option** — the premium cap *is* the edge; a leveraged future is strictly worse (no Sharpe gain + ruin tail) |
+| **24/7 continuous (crypto perps)** | none — stops fill cleanly | tight-stop future becomes Sharpe-competitive: idealized NIFTY 50×/12% *continuous* → 0.83 > option 0.70 — but only at the tight stop, on idealized fills, and full-capital high leverage *still* vol-drags below 1× |
+| **US index futures (ES/NQ, ~23/5)** | weekend + flash-crash gaps remain | not truly continuous — the gap-cap argument still applies |
+
+Bottom line: in the markets we actually trade — **NIFTY weekly and MCX, both of which close daily and over the
+weekend** — the option's premium-cap and tail-convexity are an irreducible edge. A leveraged future earns no Sharpe
+premium, removes the convex upside, and reintroduces the exact gap/ruin risk the option was eliminating. The future
+only catches up in a genuinely never-closing market, and even then only on idealized fills at the tightest stop.
+
 ## Methodology / data-ethics standards
 True 1-minute intraday stops (gap-through aware) · real option marks (intrinsic floor only for genuinely-missing,
 which is conservative) · split/bonus back-adjustment + cross-ex-date exclusion · **matched-hold apples-to-apples** ·
