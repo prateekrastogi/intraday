@@ -1,16 +1,14 @@
 [project]
 name = "volarb"
-version = "0.0.1"
-description = "Intraday NIFTY straddle/strangle volatility arbitrage (realized-vs-implied spread)."
+version = "0.1.0"
+description = "Directional ITM opening-range-breakout options strategy (NIFTY-weekly + MCX Crude), real 1-min backtest."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "nautilus_trader",   # engine: backtest+live parity, options-native, + IV/greeks (imply_vol_and_greeks / GreeksData)
-    "statsmodels",       # HAR-RV via OLS + HAC standard errors (no GARCH)
-    "breeze-connect",    # ICICI Breeze: data + execution (1-sec underlying + per-strike options incl. expired)
-    "pandas",            # Nautilus wrangler boundary + parquet IO
-    "polars",            # research panel builder (wide-on-moneyness pivot)
-    "pyarrow",           # parquet engine for pandas/polars + Nautilus catalog
+    "breeze-connect",  # ICICI Breeze: data + execution (1-min underlying + per-strike options incl. expired; NSE + MCX)
+    "pandas",          # backtest dataframes + Parquet IO
+    "numpy",           # array math
+    "pyarrow",         # Parquet engine
 ]
 
 [dependency-groups]
@@ -31,4 +29,4 @@ target-version = "py311"
 testpaths = ["tests"]
 
 [tool.uv]
-# Pin all versions in uv.lock (commit it). NautilusTrader v1.x is BETA; expect churn until 2.x.
+# Pin all versions in uv.lock (commit it).

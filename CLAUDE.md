@@ -1,38 +1,41 @@
-# arbitrage — vol-arb engine (development rules)
+# arbitrage — directional ITM ORB engine (development rules)
 
-This repo implements the long-volatility / **realized-vs-implied** strategy from `vol_research`:
-an unhedged intraday NIFTY straddle / slight-OTM strangle, entered on a jump + HAR-RV signal **only
-when forecast realized vol exceeds the option's implied vol by enough to clear costs.**
+This repo implements the one **validated** edge from 3 years of real 1-minute OOS backtesting (see `README.md`):
+an intraday **opening-range breakout** → buy a deep-ish **ITM (~delta 0.65) option** in the breakout direction →
+**cut losses fast at a true 1-minute −12% intraday stop, ride winners ~5 trading days.** Convex / fat-tailed
+(low win rate, rare big winners). The cut-loss-fast stop *is* the edge. Runs on NIFTY-weekly and MCX Crude.
+
+> The original long-vol straddle/strangle (realized-vs-implied spread) thesis was **refuted** by the same
+> backtesting and removed. Don't reintroduce vol-forecast signals (HAR-RV, Lee-Mykland), straddle/strangle/
+> backspread structures, or the OU exit — they were tested and bled.
 
 ## CORE PRINCIPLE (non-negotiable): QUALITY open-source first, minimal custom code
-**Trading-infra bugs cost real money.** We **reuse battle-tested open-source** on every critical path and
-write as little of our own code as possible — but the bar is **quality, not just "open-source":** only
-mature, actively-maintained, widely-adopted, well-tested, permissively-licensed libraries qualify.
-**An abandoned or niche library is a liability — for those, write our own (well-tested) instead.**
-Writing our own **adapter / glue / signal logic is expected** where no quality library fits (e.g. a Kite adapter).
+Trading-infra bugs cost real money. **Reuse battle-tested, actively-maintained, permissively-licensed libraries**
+on every critical path; write only what no quality library covers — here: the Breeze data adapter, the ORB
+signal, the strike/stop strategy logic, and the NSE cost model. An abandoned/niche library is a liability —
+write our own (well-tested) instead.
 
-### Reuse — adopt these vetted libraries (do NOT reimplement):
-| Concern | Library | Why it clears the quality bar |
-|---|---|---|
-| Engine (backtest **+** live, one code path) | **NautilusTrader** (pin a v1.x) | options-native (`OptionContract`) + true backtest↔live parity; 24k★, daily commits. *No NSE adapter — we write our own **Breeze** adapter (pure Python).* |
-| Pricing / IV / greeks | **NautilusTrader** (`nautilus_pyo3.imply_vol_and_greeks`, Black-76 via b=0) | Already a dep; Rust LetsBeRational; SAME inverter in research+backtest+live (no parity drift). |
-| HAR-RV | **statsmodels** (OLS + HAC SEs) | HAR is OLS w/ Newey-West. **No GARCH / `arch`** — HAR is the decided forecaster (per vol_research). |
-| Broker + data (NSE) | **breeze-connect** (ICICI Breeze) | official, MIT; free 1-sec underlying + best free per-strike options. *Caveat: WS/session reliability — the adapter must be reconnect-robust and handle the daily session token.* |
-| Dataframes / IO / storage | pandas / polars / pyarrow / duckdb | standard |
+### Reuse — adopt, don't reimplement
+| Concern | Library |
+|---|---|
+| Dataframes / IO / Parquet | pandas / numpy / pyarrow |
+| Broker + data (NSE + MCX) | **breeze-connect** (ICICI Breeze) — official, MIT; 1-min underlying + per-strike options incl. expired; MCX via `exchange_code="MCX"`. |
 
-**Avoid (failed the quality/fit bar):** GARCH/`arch` (not needed — HAR decided), vollib & py_vollib_vectorized (redundant -- Nautilus ships imply_vol/GreeksData), mibian, vectorbt/pro (array paradigm fights options; non-permissive license), OpenAlgo as a default layer (extra AGPL hop for a single broker — call breeze-connect directly), lumibot, backtrader.
+The strategy is a lightweight pandas/numpy backtest (`strategy/orb.py`) on the real 1-min Parquet lakes — it uses
+**moneyness, not a pricing model** (no greeks needed). A NautilusTrader engine path is NOT required for this
+research-grade implementation; promote to Nautilus only if/when going live (then keep one strategy class
+backtest↔live).
 
-### Write ourselves — ONLY these (no quality lib covers them):
-- **Breeze adapter** for NautilusTrader (data + execution) — pure Python; daily session-token auth; robust WS reconnect.
-- **Signal logic**: HAR-RV forecast + Lee-Mykland jump flag (on NIFTY **futures**, 1-min) + the **RV−IV spread** model (*the edge axis*).
-- **Strategy class** (Nautilus Strategy subclass) + the **spread-gated entry** (enter only when forecast RV beats IV + the regime VRP + costs).
-- **NSE cost model** (full STT / txn / SEBI / GST / stamp / brokerage / bid-ask stack) — **build FIRST** (per IMPLEMENTATION.md §7).
-- A thin wrapper over Nautilus `imply_vol_and_greeks` + IV guards (vega floor, t-floor, intrinsic filter, ATM smile-interp).
+### Write ourselves — ONLY these
+- **Breeze adapter** (`adapters/breeze/`): daily session-token auth, rate limiter, resumable 1-min backfill.
+- **ORB signal + strategy** (`strategy/orb.py`, `strategy/config.py`): opening-range breakout (OR scaled to ~8%
+  of session), ITM strike selection, true 1-minute intraday stop, N-day hold capped at expiry.
+- **NSE cost model** (`costs/nse_fees.py`): full STT / txn / SEBI / GST / stamp / brokerage / bid-ask stack.
 
-## Rule for Claude (enforce on every change)
-1. **Before writing any non-trivial component, search for a QUALITY library first** — check last release, commit activity, adoption, test coverage, license. Adopt only if it clears that bar; an abandoned/niche lib is worse than our own well-tested code.
-2. **If you write custom code, justify in the PR/commit why no library fits.** Default is compose/configure, not build.
-3. Keep the **custom surface area minimal and well-tested** (pytest; e.g. put-call-parity checks on pricing, golden-file tests on the cost model).
-4. Pin dependency versions (uv); prefer libraries that are actively maintained and permissively licensed.
-
-*(Stack finalized via a quality-graded research pass; see `PLAN.md` for the build order and the realized-vs-implied validation gate.)*
+## Rules for Claude (enforce on every change)
+1. Before writing any non-trivial component, search for a QUALITY library first; adopt only if it clears the bar.
+2. Keep the custom surface area **minimal and well-tested** (pytest). No-lookahead by construction; net-of-cost.
+3. **Match comparisons** (same hold period when comparing moneyness; same instrument at equal expiry, etc.) and
+   **report winner-robustness** (drop-top-N, OOS held-out test) — the edge is fat-tailed and easy to fool yourself on.
+4. Pin dependency versions (uv). `uv run --no-sync` to run. **Never commit secrets** — `BREEZE_SESSION_TOKEN`
+   lives only in `.env` (gitignored); commit/push only when explicitly asked.
