@@ -123,6 +123,40 @@ future wins outright. A leveraged future earns no Sharpe premium from leverage �
 wrapper is the weaker vehicle, and even then a closing market re-exposes it to the uncapped gap risk the option
 eliminates by construction.
 
+### Matched-sizing detail (verified — independent re-implementation reproduced the arrays element-for-element)
+
+Per-trade, same paired ORB trades: **NIFTY** (83 trades, 2.98y) option Sharpe 0.70 (skew +3.55, worst −38%) ·
+future-cont 0.61 · future-gappy 0.37. **Crude** (35 trades, 2.81y) option 0.39 (skew +1.74, worst −100%) ·
+future-cont 1.01 · future-gappy 0.83. (cont = idealized clean stop fill; gappy = realistic overnight-open fill.)
+
+Final equity over ~3yr by sizing rule — **option / future-cont / future-gappy** (best in **bold**):
+
+| Sizing rule (no-snoop) | NIFTY opt / cont / gappy | Crude opt / cont / gappy |
+|---|---|---|
+| Option @20% (the cited baseline) | **2.38×** / — / — | **1.25×** / — / — |
+| Vol-target 10% | **1.21×** / 1.18× / 1.10× | 1.10× / **1.31×** / 1.25× |
+| Vol-target 15% | **1.32×** / 1.27× / 1.14× | 1.14× / **1.48×** / 1.38× |
+| Vol-target 20% | **1.43×** / 1.36× / 1.18× | 1.18× / **1.67×** / 1.51× |
+| Fixed-fractional risk 1%/trade | **1.61×** / 1.31× / 1.16× | 1.14× / **1.46×** / 1.37× |
+| Fixed-fractional risk 2%/trade | **2.18×** / 1.59× / 1.25× | 1.23× / **2.01×** / 1.78× |
+| Quarter-Kelly | **1.68×** / 1.38× / 1.11× | 1.11× / **3.36×** / 1.95× |
+| Half-Kelly | **2.30×** / 1.71× / 1.19× | 1.20× / **6.71×** / 2.95× |
+| Full-Kelly | **2.86×** / 1.99× / 1.26× | 1.27× / **10.66×** / 3.98× |
+
+So on **NIFTY the option wins at every rule**; on **Crude the future wins at every rule** (even the realistic
+gappy future). The cited "option @20%" baseline is itself an aggressive ~half-Kelly point (66% realized vol), not
+a snooped sizing.
+
+**Robustness (paired bootstrap, 20k resamples + drop-winners):**
+- *NIFTY (option's win is inside the noise + one-winner-driven):* Sharpe-difference (option − future) 90% CI
+  **[−0.27, +0.42]** straddles zero; P(option Sharpe > future) ≈ **0.66**. Drop the single +321% trade → half-Kelly
+  final equity 2.30× → 1.34×; drop the top-3 → option Sharpe goes negative and Kelly bets zero.
+- *Crude (the future's win is statistically real):* P(future > option) = **1.00** (cont) / **0.98** (gappy); the
+  Sharpe-difference CI excludes zero and survives dropping the future's own best trades (leave-one-out Sharpe
+  [0.79, 1.04]). But removing the option's single −100% total-loss trade lifts its Sharpe 0.39 → 0.63 (future still
+  wins) — confirming the margin is partly the crude option being a uniquely bad, fat-tailed wrapper. n=35 from a
+  recent shallow window, so the ranking is reliable in-sample but the magnitude is sample/tail-specific.
+
 ## Methodology / data-ethics standards
 True 1-minute intraday stops (gap-through aware) · real option marks (intrinsic floor only for genuinely-missing,
 which is conservative) · split/bonus back-adjustment + cross-ex-date exclusion · **matched-hold apples-to-apples** ·
